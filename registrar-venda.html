@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Venda - Mercado BOM D+</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <script src="app.js"></script>
+
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h3>Mercado BOM D+</h3>
+        </div>
+        <ul>
+            <li class="active"><a href="dashboard.html"><i class="fas fa-home"></i> Início</a></li>
+            <li><a href="produtos.html"><i class="fas fa-box"></i> Produtos</a></li>
+            <li><a href="categorias.html"><i class="fas fa-tags"></i> Categorias</a></li>
+            <li><a href="relatorios-vendas.html"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
+            <li><a href="configuracoes.html"><i class="fas fa-cog"></i> Configurações</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="#"><i class="fas fa-sign-out-alt"></i> Sair</a>
+        </div>
+    </nav>
+
+    <main class="content">
+        
+        <header class="top-header">
+           </header>
+
+        <div class="page-header">
+            <h1>Registrar Venda</h1>
+            <a href="dashboard.html" class="btn-secondary">Voltar ao Dashboard</a>
+        </div>
+
+        <div class="card">
+            <form id="form-add-venda" class="form-layout">
+                
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="buscar-produto">Buscar Produto Vendido (SKU ou Nome)</label>
+                        <input type="text" id="buscar-produto" placeholder="Digite o SKU ou nome do produto..." required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quantidade">Quantidade Vendida</label>
+                        <input type="number" id="quantidade" step="1" placeholder="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="valor-total">Valor Total da Venda (R$)</label>
+                        <input type="number" id="valor-total" step="0.01" placeholder="R$ 0,00" required>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="metodo-pagamento">Método de Pagamento</label>
+                        <select id="metodo-pagamento" required>
+                            <option value="">Selecione o método</option>
+                            <option value="cartao">Cartão</option>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="pix">Pix</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Registrar Venda</button>
+                    <a href="dashboard.html" class="btn-secondary">Cancelar</a>
+                </div>
+
+            </form>
+        </div>
+         <small class="form-hint" style="margin-top: 15px;">
+            Nota: Este formulário registra a venda de um tipo de produto por vez. O Back-end irá somar todas as vendas registradas hoje para o "Total do Dia".
+         </small>
+    </main>
+
+</body>
+</html>

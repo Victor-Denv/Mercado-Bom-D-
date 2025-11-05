@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório: Inventário - Mercado BOM D+</title>
+
+    <script src="auth-guard.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h3>Mercado BOM D+</h3>
+        </div>
+        <ul>
+            <li><a href="dashboard.html"><i class="fas fa-home"></i> Início</a></li>
+            <li><a href="produtos.html"><i class="fas fa-box"></i> Produtos</a></li>
+            <li><a href="categorias.html"><i class="fas fa-tags"></i> Categorias</a></li>
+            <li class="active"><a href="relatorios-vendas.html"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
+            <li><a href="configuracoes.html"><i class="fas fa-cog"></i> Configurações</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="#"><i class="fas fa-sign-out-alt"></i> Sair</a>
+        </div>
+    </nav>
+
+    <main class="content">
+        
+        <header class="top-header">
+           <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
+                
+                <div id="global-search-results" class="suggestions-list" style="display: none;">
+                    </div>
+            </div>
+            <div class="user-info">
+                <i class="fas fa-bell"></i>
+                <div class="profile">
+                <img src="httpsa://via.placeholder.com/40" alt="Avatar" id="header-profile-pic">
+                    <div>
+                        <strong>Admin</strong>
+                        <small>Mercado BOM D+</small>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-header">
+            <h1>Relatórios do Estoque</h1>
+        </div>
+
+        <h2 class="section-title">Selecionar Relatório</h2>
+        <div class="report-selector">
+            <a href="relatorios-vendas.html" class="report-card">
+                <i class="fas fa-wallet"></i>
+                <h4>Vendas Diárias</h4>
+                <small>Histórico de vendas por dia.</small>
+            </a>
+            <a href="relatorios-estoque-baixo.html" class="report-card">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h4>Estoque Baixo</h4>
+                <small>Itens que precisam de reposição.</small>
+            </a>
+            <a href="relatorios-inventario.html" class="report-card active">
+                <i class="fas fa-dollar-sign"></i>
+                <h4>Inventário (Valor)</h4>
+                <small>Valor total de custo do estoque.</small>
+            </a>
+            <a href="relatorios-perdas.html" class="report-card">
+                <i class="fas fa-arrow-down"></i>
+                <h4>Perdas e Ajustes</h4>
+                <small>Saídas que não foram vendas.</small>
+            </a>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Relatório: Inventário (Valor de Custo)</h3>
+                <button class="btn-secondary"><i class="fas fa-print"></i> Imprimir</button>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Qtd. em Estoque</th>
+                            <th>Custo Unitário (R$)</th>
+                            <th>Custo Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-report-body">
+                        </tbody>
+                    <tfoot>
+                        <tr class="table-total-footer">
+                            <td colspan="3">VALOR TOTAL DO ESTOQUE</td>
+                            <td class="total-col" id="inventory-total-footer">R$ 0,00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Produto - Mercado BOM D+</title> <script src="auth-guard.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h3>Mercado BOM D+</h3>
+        </div>
+        <ul>
+            <li><a href="dashboard.html"><i class="fas fa-home"></i> Início</a></li>
+            <li class="active"><a href="produtos.html"><i class="fas fa-box"></i> Produtos</a></li>
+            <li><a href="categorias.html"><i class="fas fa-tags"></i> Categorias</a></li>
+            <li><a href="relatorios-vendas.html"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
+            <li><a href="configuracoes.html"><i class="fas fa-cog"></i> Configurações</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="#"><i class="fas fa-sign-out-alt"></i> Sair</a>
+        </div>
+    </nav>
+
+    <main class="content">
+        
+        <header class="top-header">
+            </header>
+
+        <div class="page-header">
+            <h1>Editar Produto</h1> <a href="produtos.html" class="btn-secondary">Voltar</a>
+        </div>
+
+        <div class="card">
+            <form id="form-edit-product" class="form-layout">
+                
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="nome-produto">Nome do Produto</label>
+                        <input type="text" id="nome-produto" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sku-produto">Código (SKU)</label>
+                        <input type="text" id="sku-produto" required readonly style="background-color: #eee;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="categoria-produto">Categoria</label>
+                        <select id="categoria-produto" required>
+                            <option value="">Selecione uma categoria</option>
+                            </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preco-custo">Preço de Custo (R$)</label>
+                        <input type="number" id="preco-custo" step="0.01" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preco-venda">Preço de Venda (R$)</label>
+                        <input type="number" id="preco-venda" step="0.01" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="qtd-inicial">Quantidade Atual</label>
+                        <input type="number" id="qtd-inicial" step="1" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="data-vencimento">Data de Vencimento</label>
+                        <input type="date" id="data-vencimento">
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="estoque-minimo">Estoque Mínimo (para Alerta)</label>
+                        <input type="number" id="estoque-minimo" step="1" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Salvar Alterações</button>
+                    <a href="produtos.html" class="btn-secondary">Cancelar</a>
+                </div>
+
+            </form>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+    
+</body>
+</html>

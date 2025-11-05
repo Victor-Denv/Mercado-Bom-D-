@@ -1,0 +1,1158 @@
+/* Importando a fonte limpa, similar ao seu design */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-light: #f9fafb;
+    --white: #ffffff;
+    --primary-green: #1e6b34;
+    --primary-green-dark: #155227;
+    --text-dark: #1f2937;
+    --text-gray: #6b7280;
+    --border-light: #e5e7eb;
+}
+
+/* Reset Básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    display: flex;
+    background-color: var(--bg-light);
+}
+
+i {
+    margin-right: 10px;
+}
+
+/* * =====================================
+ * ATUALIZAÇÃO AQUI
+ * A barra lateral agora é verde e os textos são brancos.
+ * =====================================
+ */
+
+/* 1. Menu Lateral (Estilo Verde) */
+.sidebar {
+    width: 260px;
+    background-color: var(--primary-green); /* FUNDO VERDE */
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    /* Borda sutil mais escura */
+    border-right: 1px solid var(--primary-green-dark); 
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 20px;
+    text-align: center;
+    /* Linha de separação branca transparente */
+    border-bottom: 1px solid rgba(255, 255, 255, 0); 
+}
+.sidebar-header .logo {
+    max-width: 150px;
+}
+.sidebar h3 {
+    color: var(--white); /* TEXTO BRANCO */
+    margin-top: 10px;
+    font-weight: 600;
+}
+.sidebar ul {
+    list-style: none;
+    flex-grow: 1;
+    padding: 15px 0;
+}
+
+.sidebar ul li a  {
+    display: flex;
+    align-items: center;
+    padding: 14px 25px;
+    margin: 8px 15px;
+    color: var(--white); /* TEXTO BRANCO */
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+/* Hover com fundo levemente transparente */
+.sidebar ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--white);
+}
+
+/* Item ativo agora tem fundo BRANCO e texto VERDE */
+.sidebar ul li.active a {
+    background-color: var(--white);
+    color: var(--primary-green);
+}
+
+.sidebar-footer {
+    padding: 15px;
+    /* Borda superior branca transparente */
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sidebar-footer a {
+    display: flex;
+    align-items: center;
+    padding: 14px 25px;
+    color: var(--white); /* TEXTO BRANCO */
+    text-decoration: none;
+    border-radius: 8px;
+}
+.sidebar-footer a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* * =====================================
+ * FIM DA ATUALIZAÇÃO
+ * O resto do CSS permanece igual.
+ * =====================================
+ */
+
+/* 2. Conteúdo Principal */
+.content {
+    flex-grow: 1;
+    padding: 30px;
+    margin-left: 260px; /* Espaço para o menu lateral */
+}
+
+/* 2.1 Cabeçalho Superior */
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--white);
+    padding: 15px 30px;
+    border-radius: 10px;
+    margin: -15px -15px 30px -15px; 
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-light);
+    padding: 8px 15px;
+    border-radius: 8px;
+    position: relative; /* GARANTA QUE ESTA LINHA ESTEJA AQUI */
+}
+.search-bar i { color: var(--text-gray); }
+.search-bar input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    margin-left: 8px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.user-info .fa-bell {
+    font-size: 1.2rem;
+    color: var(--text-gray);
+    cursor: pointer;
+}
+.profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.profile img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+.profile div {
+    display: flex;
+    flex-direction: column;
+}
+.profile strong { font-size: 14px; color: var(--text-dark); }
+.profile small { font-size: 12px; color: var(--text-gray); }
+
+/* 2.2 Cabeçalho da Página */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.page-header h1 {
+    color: var(--text-dark);
+}
+
+/* 2.3 Cartões (Filtros e Tabela) */
+.card {
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+.filters {
+    display: flex;
+    gap: 15px;
+}
+.filters input, .filters select {
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    flex-grow: 1;
+    background-color: var(--bg-light);
+}
+
+/* 2.4 Botões */
+.btn-primary {
+    background-color: var(--primary-green);
+    color: white;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+.btn-primary:hover {
+    background-color: var(--primary-green-dark);
+}
+.btn-secondary {
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+    padding: 12px 18px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* 2.5 Tabela */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th, td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+}
+thead th {
+    color: var(--text-gray);
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+tbody tr:last-child td {
+    border-bottom: none;
+}
+tbody td {
+    color: var(--text-dark);
+    font-weight: 500;
+}
+
+/* Botões de Ação na Tabela */
+.btn-action {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-right: 5px;
+    font-weight: 500;
+    font-size: 12px;
+}
+.btn-action.edit { background-color: #fef3c7; color: #a16207; } /* Amarelo */
+.btn-action.delete { background-color: #fee2e2; color: #b91c1c; } /* Vermelho */
+
+/* Destaques de Estoque */
+.stock-ok {
+    color: #059669; /* Verde (sucesso) */
+    font-weight: 600;
+}
+.stock-low {
+    color: #dc2626; /* Vermelho (perigo) */
+    font-weight: 600;
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Formulários
+ * =====================================
+ */
+
+.form-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 25px; /* Espaço entre os grupos de campos e os botões */
+}
+
+/* Grid para os campos do formulário */
+.form-grid {
+    display: grid;
+    /* Duas colunas de tamanho igual */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 20px; /* Espaço entre os campos */
+}
+
+/* Classe para um campo ocupar a largura total */
+.form-grid .full-width {
+    grid-column: 1 / -1; /* Ocupa da primeira à última coluna */
+}
+
+/* Grupo de (Rótulo + Campo) */
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+/* Estilo padrão para todos os campos */
+/* Estilo padrão para todos os campos */
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"], /* <-- ADICIONE ESTA LINHA */
+.form-group select,
+.form-group textarea {
+    padding: 12px;
+/* ... (mais estilos) ... */
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: var(--text-gray);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-green); /* Destaque verde ao focar */
+    box-shadow: 0 0 0 2px rgba(30, 107, 52, 0.2); /* Sombra suave verde */
+}
+
+/* Botões de Ação no final do form */
+.form-actions {
+    display: flex;
+    justify-content: flex-end; /* Alinha botões à direita */
+    gap: 15px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 20px;
+}
+
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Dashboard
+ * =====================================
+ */
+
+/* Grid dos Cartões de Estatística */
+.stats-grid {
+    display: grid;
+    /* 3 colunas, cada uma ocupa 1 fração do espaço */
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.stat-icon {
+    font-size: 2.5rem; /* Tamanho grande */
+    padding: 15px;
+    border-radius: 50%; /* Círculo */
+}
+/* Cores dos ícones */
+.stat-icon.green { color: #059669; background-color: #e6f8f3; }
+.stat-icon.blue  { color: #2563eb; background-color: #e9effd; }
+.stat-icon.red   { color: #dc2626; background-color: #fee2e2; }
+
+.stat-info h4 {
+    font-size: 14px;
+    color: var(--text-gray);
+    font-weight: 500;
+}
+.stat-info strong {
+    font-size: 1.8rem; /* Número grande */
+    color: var(--text-dark);
+    line-height: 1.2;
+}
+.stat-info small {
+    font-size: 12px;
+    color: var(--text-gray);
+}
+
+/* Estilo especial para o card de alerta */
+.stat-card-alert {
+    background-color: #fffbeb; /* Fundo amarelo claro */
+    border: 1px solid #fde68a; /* Borda amarela */
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-wrap: wrap; /* Permite quebrar linha */
+    align-items: center;
+    gap: 20px;
+}
+.stat-card-alert .stat-info {
+    flex-grow: 1; /* Ocupa o espaço */
+}
+.stat-card-alert .btn-secondary {
+    width: 100%; /* Botão ocupa largura total */
+    text-align: center;
+    margin-top: 10px;
+    background-color: var(--white);
+}
+
+/* Título da Seção (ex: "Acesso Rápido") */
+.section-title {
+    font-size: 1.25rem;
+    color: var(--text-dark);
+    margin-bottom: 20px;
+    margin-top: 10px;
+}
+
+/* Grid de Acesso Rápido */
+.quick-access-grid {
+    display: grid;
+    /* 4 colunas */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+
+.quick-card {
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+.quick-card:hover {
+    transform: translateY(-5px); /* Efeito de levantar */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.quick-card i {
+    font-size: 1.5rem;
+    color: var(--primary-green); /* Ícone verde */
+    margin-bottom: 15px;
+    display: block; /* Para ter margem */
+}
+.quick-card h4 {
+    font-size: 1rem;
+    color: var(--text-dark);
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.quick-card small {
+    font-size: 13px;
+    color: var(--text-gray);
+    line-height: 1.4;
+}
+
+/* * =====================================
+ * Ajustes para Telas Menores (Responsividade)
+ * =====================================
+ */
+@media (max-width: 1200px) {
+    .stats-grid {
+        grid-template-columns: 1fr; /* Uma coluna */
+    }
+    .quick-access-grid {
+        grid-template-columns: repeat(2, 1fr); /* Duas colunas */
+    }
+}
+
+@media (max-width: 768px) {
+    /* (Aqui iriamos esconder a sidebar, mas por enquanto vamos só ajustar o grid) */
+    .quick-access-grid {
+        grid-template-columns: 1fr; /* Uma coluna */
+    }
+    .content {
+        /* No futuro, o JS mudaria isso quando o menu fosse escondido */
+        /* margin-left: 0; */ 
+    }
+}
+
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Página de Categorias
+ * =====================================
+ */
+
+/* Grid da página (Formulário ao lado da Lista) */
+.page-grid {
+    display: grid;
+    /* * 1fr = 1 fração (para o formulário)
+     * 2fr = 2 frações (para a lista, ocupando o dobro do espaço)
+     */
+    grid-template-columns: 1fr 2fr; 
+    gap: 20px;
+    align-items: start; /* Alinha os cards pelo topo */
+}
+
+/* Título dentro de um card */
+.card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+/* Lista de Categorias */
+.category-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Espaço entre os itens */
+}
+
+.category-list li {
+    display: flex;
+    justify-content: space-between; /* Nome de um lado, botão do outro */
+    align-items: center;
+    padding: 12px 15px;
+    background-color: var(--bg-light); /* Fundo cinza claro */
+    border-radius: 8px;
+    border: 1px solid var(--border-light);
+}
+
+.category-list li span {
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+/* Ajusta o botão de deletar para não ter texto */
+.category-list .btn-action.delete {
+    margin-right: 0;
+}
+.category-list .btn-action.delete i {
+    margin-right: 0; /* Remove a margem do ícone */
+}
+
+/* Ajustes de responsividade para essa página */
+@media (max-width: 992px) {
+    .page-grid {
+        /* Uma coluna só em telas menores */
+        grid-template-columns: 1fr; 
+    }
+}
+
+.activity-feed {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.feed-item {
+    display: flex;
+    align-items: center; /* Alinha o ícone e o texto verticalmente */
+    gap: 15px; /* Espaço entre ícone, texto e tempo */
+    padding: 15px 5px; /* Espaço acima e abaixo de cada item */
+    border-bottom: 1px solid var(--border-light); /* Linha divisória */
+}
+
+/* Remove a borda do último item */
+.feed-item:last-child {
+    border-bottom: none;
+    padding-bottom: 5px;
+}
+
+/* Deixa o primeiro item sem padding superior */
+.feed-item:first-child {
+    padding-top: 5px;
+}
+
+.activity-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%; /* Círculo perfeito */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0; /* Impede que o ícone seja espremido */
+}
+
+/* Cores dos ícones (reutilizando as que já temos) */
+.activity-icon.red {
+    background-color: #fee2e2; /* Fundo vermelho claro */
+    color: #dc2626; /* Ícone vermelho escuro */
+}
+.activity-icon.green {
+    background-color: #e6f8f3; /* Fundo verde claro */
+    color: #059669; /* Ícone verde escuro */
+}
+.activity-icon.blue {
+    background-color: #e9effd; /* Fundo azul claro */
+    color: #2563eb; /* Ícone azul escuro */
+}
+.activity-icon.gray {
+    background-color: var(--bg-light); /* Fundo cinza claro */
+    color: var(--text-gray); /* Ícone cinza */
+}
+
+.activity-details {
+    flex-grow: 1; /* Faz esta div ocupar todo o espaço do meio */
+    display: flex;
+    flex-direction: column;
+}
+
+.activity-details strong {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 14px;
+}
+
+.activity-details span {
+    font-size: 13px;
+    color: var(--text-gray);
+}
+
+.activity-time {
+    font-size: 12px;
+    color: var(--text-gray);
+    font-weight: 500;
+    flex-shrink: 0; /* Impede que o tempo quebre linha ou seja espremido */
+}
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Vendas (Dashboard e Relatórios)
+ * =====================================
+ */
+
+/* 1. Dashboard: Mudar grid para 4 colunas */
+.stats-grid {
+    /* Sobrescreve a regra anterior de 3 colunas */
+    grid-template-columns: repeat(4, 1fr); 
+}
+
+/* 2. Dashboard: Nova cor do ícone */
+.stat-icon.yellow { 
+    color: #d97706; /* Laranja/Amarelo escuro */
+    background-color: #fef9c3; /* Amarelo bem claro */
+}
+
+/* 3. Relatórios: Coluna de "Total" em negrito */
+.table-container .total-col {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+/* 4. Responsividade: Ajuste para o grid de 4 colunas */
+@media (max-width: 1200px) {
+    .stats-grid {
+        /* Em telas médias, 2 colunas */
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 768px) {
+    .stats-grid {
+        /* Em telas pequenas, 1 coluna */
+        grid-template-columns: 1fr;
+    }
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Página de Relatórios
+ * =====================================
+ */
+
+/* Grid para os seletores de relatório */
+.report-selector {
+    display: grid;
+    /* 3 colunas, ou menos se não couber */
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.report-card {
+    display: block;
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 20px;
+    border: 2px solid var(--border-light);
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.report-card i {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    display: block;
+    color: var(--text-gray);
+}
+
+.report-card h4 {
+    font-size: 1rem;
+    color: var(--text-dark);
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+.report-card small {
+    font-size: 13px;
+    color: var(--text-gray);
+    line-height: 1.4;
+}
+
+/* Estilo do card selecionado */
+.report-card:hover {
+    border-color: var(--primary-green-dark);
+    transform: translateY(-3px);
+}
+.report-card.active {
+    border-color: var(--primary-green);
+    background-color: #f0fdf4; /* Verde bem clarinho */
+}
+.report-card.active i,
+.report-card.active h4 {
+    color: var(--primary-green);
+}
+
+/* Cabeçalho do Card (para o título e botão de imprimir) */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.card-header .card-title {
+    /* Removemos a borda e padding do estilo .card-title antigo */
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+.card-header .btn-secondary i {
+    margin-right: 8px; /* Espaço para o ícone de imprimir */
+}
+
+/* Rodapé da Tabela */
+.table-footer {
+    display: block;
+    padding-top: 15px;
+    font-size: 12px;
+    color: var(--text-gray);
+    font-style: italic;
+}
+
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Rodapé de Total da Tabela
+ * =====================================
+ */
+
+.table-container tfoot tr {
+    border-top: 2px solid var(--text-dark); /* Linha dupla grossa */
+}
+
+.table-total-footer td {
+    padding: 15px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-dark);
+}
+.table-total-footer .total-col,
+.table-total-footer .stock-low {
+    font-size: 1.1rem;
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Página de Configurações
+ * =====================================
+ */
+
+/* Dica de ajuda em formulários */
+.form-hint {
+    font-size: 12px;
+    color: var(--text-gray);
+    margin-top: 5px;
+}
+
+/* Card da Zona de Perigo */
+.danger-zone-card {
+    background-color: #fee2e2; /* Fundo vermelho claro */
+    border: 1px solid #fecaca; /* Borda vermelha mais clara */
+}
+
+.danger-zone-card .card-title {
+    color: #b91c1c; /* Título vermelho escuro */
+    border-bottom-color: #fecaca;
+}
+
+.danger-zone-card p {
+    font-size: 14px;
+    color: #b91c1c;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+/* Botão de Perigo (Vermelho) */
+.btn-danger {
+    background-color: #dc2626; /* Vermelho */
+    color: white;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+.btn-danger:hover {
+    background-color: #b91c1c; /* Vermelho escuro */
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Grid de 5 Colunas
+ * =====================================
+ */
+
+/* Grid de Acesso Rápido (padrão com 4 colunas) */
+.quick-access-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/* Nova regra para o grid de 5 colunas */
+.quick-access-grid.five-cols {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+/* Ajustes de responsividade para 5 colunas */
+@media (max-width: 1200px) {
+    .quick-access-grid.five-cols {
+        grid-template-columns: repeat(3, 1fr); /* 3 colunas em tela média */
+    }
+}
+
+@media (max-width: 992px) {
+    .quick-access-grid.five-cols {
+        grid-template-columns: repeat(2, 1fr); /* 2 colunas em tablet */
+    }
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Grid de 5 Colunas
+ * =====================================
+ */
+
+/* Grid de Acesso Rápido (padrão) */
+.quick-access-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/* Nova regra para o grid de 5 colunas */
+.quick-access-grid.five-cols {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+/* Ajustes de responsividade para 5 colunas */
+@media (max-width: 1200px) {
+    .quick-access-grid.five-cols {
+        grid-template-columns: repeat(3, 1fr); /* 3 colunas em tela média */
+    }
+}
+
+@media (max-width: 992px) {
+    .quick-access-grid.five-cols {
+        grid-template-columns: repeat(2, 1fr); /* 2 colunas em tablet */
+    }
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para a Página de Login
+ * =====================================
+ */
+
+.login-body {
+    /* Garante que o body não tenha o "display: flex" do app */
+    display: block;
+    background-color: var(--bg-light); /* Fundo cinza claro */
+}
+
+.login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw; /* 100% da largura da tela */
+    height: 100vh; /* 100% da altura da tela */
+    padding: 20px;
+}
+
+.login-card {
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 40px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 450px; /* Largura máxima do card */
+}
+
+/* Cabeçalho do Card (Logo e subtítulo) */
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-header h3 {
+    color: var(--primary-green); /* Cor principal do mercado */
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.login-header p {
+    font-size: 1rem;
+    color: var(--text-gray);
+}
+
+/* Linha com "Lembrar de mim" e "Esqueceu a senha" */
+.form-group-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Espaço entre o checkbox e o label */
+}
+.remember-me input {
+    /* Faz o checkbox ser clicável mais fácil */
+    width: 16px;
+    height: 16px;
+}
+.remember-me label {
+    font-size: 14px;
+    color: var(--text-gray);
+    font-weight: 500;
+    /* Resetamos o estilo padrão de label */
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.forgot-password {
+    font-size: 14px;
+    color: var(--primary-green);
+    font-weight: 600;
+    text-decoration: none;
+}
+.forgot-password:hover {
+    text-decoration: underline;
+}
+
+/* Botão de Login (Largura Total) */
+.btn-full-width {
+    width: 100%;
+    padding: 14px; /* Botão um pouco maior */
+    font-size: 1rem;
+    justify-content: center; /* Centraliza o ícone e texto */
+}
+.btn-full-width i {
+    margin-right: 8px;
+}
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para Modal de Confirmação
+ * =====================================
+ */
+
+/* 1. O Fundo Escuro (Overlay) */
+.modal-overlay {
+    display: none; /* Escondido por padrão */
+    position: fixed; /* Fica por cima de tudo */
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Fundo preto semi-transparente */
+
+    /* Para centralizar o conteúdo */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 2. O Card Branco (Conteúdo) */
+.modal-content {
+    background-color: var(--white);
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 450px;
+    text-align: center;
+    position: relative; /* Para o ícone de fechar */
+    
+    /* Animação de "surgir" */
+    animation: zoomIn 0.3s ease-out;
+}
+
+/* Ícone de "X" para fechar */
+.modal-close-icon {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 1.8rem;
+    color: var(--text-gray);
+    cursor: pointer;
+}
+.modal-close-icon:hover {
+    color: var(--text-dark);
+}
+
+/* Ícone de Alerta (o triângulo) */
+.modal-icon-alert {
+    font-size: 3rem;
+    color: #dc2626; /* Vermelho */
+    margin-bottom: 20px;
+}
+
+.modal-content h2 {
+    color: var(--text-dark);
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.modal-content p {
+    font-size: 1rem;
+    color: var(--text-gray);
+    line-height: 1.5;
+    margin-bottom: 25px;
+}
+
+/* Botões de Ação */
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+/* Animação de surgir (opcional, mas legal) */
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para a Caixa de Sugestões (Autocomplete)
+ * =====================================
+ */
+
+/* 1. O container (para o posicionamento) */
+#search-container {
+    position: relative; /* Fundamental */
+}
+
+/* 2. A caixa flutuante */
+.suggestions-list {
+    position: absolute;
+    top: 100%; /* Aparece logo abaixo do input */
+    left: 0;
+    right: 0;
+    z-index: 100; /* Fica por cima de outros elementos */
+    background-color: var(--white);
+    border: 1px solid var(--border-light);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.1);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* 3. Cada item de sugestão */
+.suggestion-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-light);
+}
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+.suggestion-item:hover {
+    background-color: var(--bg-light);
+}
+
+.suggestion-item strong {
+    color: var(--text-dark);
+}
+.suggestion-item small {
+    color: var(--primary-green);
+    margin-left: 8px;
+}
+
+/* * =====================================
+ * ADICIONAR ESTAS NOVAS REGRAS AO FINAL DO SEU style.css
+ * Estilos para a Foto de Perfil
+ * =====================================
+ */
+
+.profile-pic-container {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+#profile-pic-preview {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover; /* Garante que a imagem não fique distorcida */
+    border: 3px solid var(--border-light);
+    margin-bottom: 15px;
+}
+
+/* Esconde o <input type="file"> padrão */
+#profile-pic-input {
+    display: none;
+}
+
+/* Faz o <label> parecer um botão (já que .btn-secondary está nele) */
+#profile-pic-input + label {
+    cursor: pointer;
+    display: inline-block;
+}
