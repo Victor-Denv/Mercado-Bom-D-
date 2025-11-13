@@ -57,7 +57,6 @@ if (logoutButton) {
  * TAREFA 13.1: LÓGICA DE REGISTRO DE ATIVIDADES
  * =====================================
  */
-// (Esta lógica de salvar no localStorage continua a mesma, por enquanto)
 function logActivity(icon, color, title, description) {
     let activities = JSON.parse(localStorage.getItem('listaDeAtividades')) || [];
     const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -181,7 +180,7 @@ if (formAddProduct) {
 }
 
 /* * =====================================
- * LÓGICA DE PRODUTOS (LISTAR - ATUALIZADO)
+ * LÓGICA DE PRODUTOS (LISTAR - CORRIGIDO)
  * =====================================
  */
 const productTableBody = document.getElementById('product-table-body');
@@ -195,11 +194,17 @@ function renderProductTable(produtosParaRenderizar) {
     if (produtosParaRenderizar.length > 0) {
         produtosParaRenderizar.forEach(produto => {
             const tr = document.createElement('tr');
+            
+            // --- CORREÇÃO AQUI ---
+            // Converte 'venda' para número ANTES de usar .toFixed()
+            const precoVenda = parseFloat(produto.venda) || 0;
+
             tr.innerHTML = `
                 <td>${produto.sku}</td>
                 <td>${produto.nome}</td>
-                <td>${produto.categoria_nome}</td> <td><span class="stock-ok">${produto.qtd}</span></td>
-                <td>R$ ${produto.venda.toFixed(2)}</td>
+                <td>${produto.categoria_nome}</td> 
+                <td><span class="stock-ok">${produto.qtd}</span></td>
+                <td>R$ ${precoVenda.toFixed(2)}</td> 
                 <td>
                     <button class="btn-action edit" data-sku="${produto.sku}">Editar</button>
                     <button class="btn-action delete" data-sku="${produto.sku}">Excluir</button>
