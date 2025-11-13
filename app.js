@@ -7,9 +7,11 @@ const API_URL = 'http://localhost:3000';
 // Define o nome da chave de Configurações
 const CONFIG_KEY = 'marketConfig'; 
 
+// --- NOVO: Define a imagem padrão
+const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
+
 /* * =====================================
- * TAREFA 15.1: CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN)
- * (Atualizado para carregar a foto do perfil selecionado)
+ * TAREFA 15.1: CARREGAR FOTO NO HEADER
  * =====================================
  */
 async function carregarDadosGlobaisUsuario() {
@@ -36,7 +38,6 @@ async function carregarDadosGlobaisUsuario() {
             }
         }
         
-        // --- NOVO: Carrega o Dropdown de Perfis ---
         const profileDropdownList = document.getElementById('profile-dropdown-list');
         if (profileDropdownList) {
             profileDropdownList.innerHTML = ''; // Limpa o dropdown
@@ -49,18 +50,16 @@ async function carregarDadosGlobaisUsuario() {
                     ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
                 `;
                 
-                // Adiciona o clique para TROCAR de perfil
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     if (perfil.nome !== currentProfileName) {
                         localStorage.setItem('currentProfile', perfil.nome);
-                        window.location.reload(); // Recarrega a página com o novo perfil
+                        window.location.reload(); 
                     }
                 });
                 profileDropdownList.appendChild(link);
             });
 
-            // Adiciona o link "Trocar de Perfil"
             const switchLink = document.createElement('a');
             switchLink.href = "perfis.html";
             switchLink.className = "add-profile-link";
@@ -147,7 +146,7 @@ function closeModal() {
         modalOverlay.style.display = 'none';
         modalOverlay.removeAttribute('data-sku');
         modalOverlay.removeAttribute('data-id'); 
-        modalOverlay.removeAttribute('data-profile-id'); // Limpa o ID do perfil
+        modalOverlay.removeAttribute('data-profile-id'); 
     }
 }
 
@@ -182,7 +181,7 @@ if (modalOverlay) {
             }
 
         } 
-        else if (idParaDeletar) { // Deletar Categoria
+        else if (idParaDeletar) { 
             try {
                 const catResponse = await fetch(`${API_URL}/categorias`);
                 const categorias = await catResponse.json();
@@ -203,7 +202,7 @@ if (modalOverlay) {
                 alert(`Erro ao deletar categoria: ${error.message}`);
             }
         }
-        else if (profileIdParaDeletar) { // Deletar Perfil
+        else if (profileIdParaDeletar) { 
             try {
                 const perfisResponse = await fetch(`${API_URL}/perfis`);
                 const perfis = await perfisResponse.json();
@@ -225,9 +224,8 @@ if (modalOverlay) {
                     await logActivity('fas fa-user-minus', 'red', 'Perfil Excluído', `O perfil "${perfilDeletado.nome}" foi removido.`);
                 }
                 alert('Perfil excluído com sucesso!');
-                carregarGerenciarPerfis(); // Recarrega a lista de perfis
+                carregarGerenciarPerfis(); 
                 closeModal();
-                // Se o perfil excluído era o perfil ativo, redireciona para a seleção
                 if (localStorage.getItem('currentProfile') === perfilDeletado.nome) {
                     localStorage.removeItem('currentProfile');
                     window.location.href = 'perfis.html';
@@ -795,7 +793,7 @@ if (formSaida) {
             return;
         }
 
-        const produtos = cacheProdutos; // Usa o cache de produtos
+        const produtos = cacheProdutos; 
         const produto = produtos.find(p => p.sku === skuParaAtualizar);
 
         if (!produto) {
@@ -850,7 +848,6 @@ if (formEditProduct) {
     if (skuParaEditar) {
         async function carregarProdutoParaEditar() {
             try {
-                // (Precisamos buscar todos os produtos para achar o certo)
                 const response = await fetch(`${API_URL}/produtos`);
                 const produtos = await response.json();
                 const produtoParaEditar = produtos.find(p => p.sku === skuParaEditar);
@@ -943,6 +940,8 @@ if (formConfigMercado) {
     carregarConfiguracoes();
 }
 const profilePicInput = document.getElementById('profile-pic-input');
+const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); // Botão Remover
+
 if (profilePicInput) {
     profilePicInput.addEventListener('change', function(event) {
         const file = event.target.files[0]; 
@@ -955,15 +954,27 @@ if (profilePicInput) {
         }
     });
 }
+// NOVO: Lógica do botão Remover
+if(profilePicRemoveBtn) {
+    profilePicRemoveBtn.addEventListener('click', () => {
+        document.getElementById('profile-pic-preview').src = PLACEHOLDER_IMG;
+        profilePicInput.value = null; // Limpa o seletor de arquivo
+    });
+}
+
 const formMeuPerfil = document.getElementById('form-meu-perfil');
 if (formMeuPerfil) {
     formMeuPerfil.addEventListener('submit', async function(event) {
         event.preventDefault();
         
+        const newSrc = document.getElementById('profile-pic-preview').src;
+        // Se a foto for o placeholder, salva 'null'
+        const finalPic = newSrc.includes('placeholder.com') ? null : newSrc;
+
         const config = {
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value, 
-            profilePic: document.getElementById('profile-pic-preview').src
+            profilePic: finalPic // Salva a foto (ou null)
         };
         const configMercado = {
             nomeMercado: document.getElementById('nome-mercado').value,
@@ -980,6 +991,8 @@ if (formMeuPerfil) {
             if (!response.ok) throw new Error('Falha ao salvar');
             
             alert('Perfil salvo com sucesso!');
+            // Atualiza o cache local da foto
+            localStorage.setItem(CONFIG_KEY, JSON.stringify({ profilePic: finalPic }));
             carregarDadosGlobaisUsuario(); 
         } catch(e) {
             alert('Erro ao salvar perfil.');
@@ -990,6 +1003,9 @@ if (formConfigMercado) {
     formConfigMercado.addEventListener('submit', async function(event) {
         event.preventDefault();
         
+        const newSrc = document.getElementById('profile-pic-preview').src;
+        const finalPic = newSrc.includes('placeholder.com') ? null : newSrc;
+        
         const config = {
             nomeMercado: document.getElementById('nome-mercado').value,
             cnpj: document.getElementById('cnpj').value,
@@ -998,7 +1014,7 @@ if (formConfigMercado) {
         const configPerfil = {
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value,
-            profilePic: document.getElementById('profile-pic-preview').src
+            profilePic: finalPic
         };
 
         try {
@@ -1033,7 +1049,7 @@ if (btnLimparSistema) {
                 // (Isso deve chamar uma rota de API, mas por enquanto limpa o localStorage)
                 localStorage.clear();
                 alert('Sistema limpo. Você será redirecionado para a tela de login.');
-                window.location.href = 'index.html'; // MUDANÇA AQUI
+                window.location.href = 'index.html';
             }
         }
     });
@@ -1161,21 +1177,19 @@ if (globalSearchInput) {
  */
 const profileGrid = document.getElementById('profile-grid');
 if (profileGrid) {
-    // 1. Carrega os perfis da API
     async function carregarPerfis() {
         try {
             const response = await fetch(`${API_URL}/perfis`);
             const perfis = await response.json();
             
-            profileGrid.innerHTML = ''; // Limpa a grade
+            profileGrid.innerHTML = ''; 
             perfis.forEach(perfil => {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
                 card.innerHTML = `
-                    <img src="${perfil.foto_perfil || 'https://via.placeholder.com/100'}" alt="${perfil.nome}" class="profile-card-pic">
+                    <img src="${perfil.foto_perfil || PLACEHOLDER_IMG}" alt="${perfil.nome}" class="profile-card-pic">
                     <span>${perfil.nome}</span>
                 `;
-                // 2. Adiciona o clique para SELECIONAR o perfil
                 card.addEventListener('click', () => {
                     localStorage.setItem('currentProfile', perfil.nome);
                     window.location.href = 'dashboard.html';
@@ -1194,7 +1208,7 @@ const formAddPerfil = document.getElementById('form-add-perfil');
 const profileList = document.getElementById('profile-list');
 
 async function carregarGerenciarPerfis() {
-    if (!profileList) return; // Só roda se a lista existir
+    if (!profileList) return; 
     try {
         const response = await fetch(`${API_URL}/perfis`);
         const perfis = await response.json();
@@ -1214,14 +1228,8 @@ async function carregarGerenciarPerfis() {
             li.querySelector('.btn-action.edit').addEventListener('click', () => {
                 window.location.href = `editar-perfil.html?id=${perfil.id}`;
             });
-
             // Ativa o botão de deletar
             li.querySelector('.btn-action.delete').addEventListener('click', () => {
-                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { 
-                    alert('Não é possível excluir o perfil principal.');
-                    return;
-                }
-                // Reutiliza o modal de confirmação
                 modalOverlay.dataset.profileId = perfil.id; // Salva o ID do perfil no modal
                 openModal();
             });
@@ -1230,29 +1238,25 @@ async function carregarGerenciarPerfis() {
         profileList.innerHTML = '<li><span>Erro ao carregar.</span></li>';
     }
 }
-// Carrega a lista de perfis na pág de config
 if(profileList) carregarGerenciarPerfis();
 
-// Lógica para ADICIONAR novo perfil
 if (formAddPerfil) {
     formAddPerfil.addEventListener('submit', async (event) => {
         event.preventDefault();
         const input = document.getElementById('nome-perfil');
         const nome = input.value;
-        
         if (!nome) return;
-
         try {
             await fetch(`${API_URL}/perfis`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     nome: nome,
-                    foto_perfil: 'https://via.placeholder.com/100' // Adiciona uma foto padrão
+                    foto_perfil: PLACEHOLDER_IMG // Adiciona uma foto padrão
                 })
             });
-            input.value = ''; // Limpa o campo
-            carregarGerenciarPerfis(); // Recarrega a lista
+            input.value = ''; 
+            carregarGerenciarPerfis(); 
         } catch (e) {
             alert('Erro ao adicionar perfil.');
         }
@@ -1269,7 +1273,7 @@ if (formEditPerfil) {
     const perfilId = urlParams.get('id');
     const preview = document.getElementById('profile-pic-preview');
     const nomeInput = document.getElementById('nome-perfil');
-    let fotoBase64 = null; // Variável para guardar a nova foto
+    let fotoBase64 = null; 
 
     // 1. Carrega os dados do perfil
     async function carregarPerfilParaEditar() {
@@ -1284,8 +1288,8 @@ if (formEditPerfil) {
             if (!response.ok) throw new Error(perfil.error);
 
             nomeInput.value = perfil.nome;
-            preview.src = perfil.foto_perfil || 'https://via.placeholder.com/100';
-            fotoBase64 = preview.src; // Salva a foto atual
+            preview.src = perfil.foto_perfil || PLACEHOLDER_IMG;
+            fotoBase64 = preview.src; 
 
         } catch (e) {
             alert('Erro ao carregar perfil: ' + e.message);
@@ -1300,12 +1304,22 @@ if (formEditPerfil) {
         if (file) {
             const reader = new FileReader();
             reader.onloadend = () => {
-                preview.src = reader.result; // Mostra a prévia
-                fotoBase64 = reader.result; // Salva o texto Base64
+                preview.src = reader.result; 
+                fotoBase64 = reader.result; 
             };
             reader.readAsDataURL(file);
         }
     });
+
+    // --- NOVO: Lógica do botão Remover Foto ---
+    const editRemoveBtn = document.getElementById('profile-pic-remove');
+    if (editRemoveBtn) {
+        editRemoveBtn.addEventListener('click', () => {
+            preview.src = PLACEHOLDER_IMG;
+            fotoBase64 = null; // Define a foto como nula
+            fotoInput.value = null;
+        });
+    }
 
     // 3. Lógica para salvar
     formEditPerfil.addEventListener('submit', async (event) => {
@@ -1322,7 +1336,7 @@ if (formEditPerfil) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nome: nome,
-                    foto_perfil: fotoBase64 // Envia o texto Base64 da imagem
+                    foto_perfil: fotoBase64 // Envia o texto Base64 ou null
                 })
             });
             if (!response.ok) throw new Error('Falha ao salvar');
@@ -1333,32 +1347,6 @@ if (formEditPerfil) {
 
         } catch (e) {
             alert('Erro ao salvar o perfil: ' + e.message);
-        }
-    });
-}
-
-/* * =====================================
- * LÓGICA DO DROPDOWN DE PERFIL (NOVO)
- * =====================================
- */
-const profileDropdown = document.getElementById('profile-dropdown');
-if (profileDropdown) {
-    const dropdownContent = document.getElementById('profile-dropdown-list');
-    profileDropdown.addEventListener('click', (event) => {
-        // Impede que clicar em um link dentro do dropdown o feche
-        if (event.target.tagName === 'A') return;
-        
-        // Alterna a exibição
-        const isShown = dropdownContent.style.display === 'block';
-        dropdownContent.style.display = isShown ? 'none' : 'block';
-        profileDropdown.classList.toggle('active', !isShown);
-    });
-
-    // Fecha se clicar fora
-    document.addEventListener('click', (event) => {
-        if (!profileDropdown.contains(event.target)) {
-            dropdownContent.style.display = 'none';
-            profileDropdown.classList.remove('active');
         }
     });
 }

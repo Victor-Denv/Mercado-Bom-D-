@@ -1409,3 +1409,21 @@ tbody td {
 .profile-list .profile-item .btn-action.delete:hover {
     color: var(--danger-hover);
 }
+
+/* * =====================================
+ * ADIÇÃO: ESTILOS PARA BOTÕES DE FOTO DE PERFIL
+ * =====================================
+ */
+.profile-pic-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px; /* Espaço entre os botões */
+}
+
+/* Ajeita o botão de remover para ficar igual ao label */
+#profile-pic-remove {
+    padding: 8px 15px;
+    font-size: 14px; 
+    font-family: 'Poppins', sans-serif;
+    font-weight: 500;
+}
