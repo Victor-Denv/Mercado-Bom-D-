@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 });
 
 /* * =====================================
- * ROTA PARA O DASHBOARD (A QUE FALTAVA)
+ * ROTA PARA O DASHBOARD
  * =====================================
  */
 app.get('/dashboard-summary', async (req, res) => {
@@ -43,11 +43,9 @@ app.get('/dashboard-summary', async (req, res) => {
         const mesAtual = dataObj.getMonth() + 1; // JS conta mês de 0-11, então somamos 1
         const anoAtual = dataObj.getFullYear();
 
-        // Pega o fechamento de HOJE
         const [diaRows] = await connection.execute('SELECT total FROM fechamentos WHERE data_fechamento = ?', [dataHoje]);
         const vendasDoDia = (diaRows.length > 0) ? diaRows[0].total : 0;
         
-        // Soma os totais do MÊS ATUAL
         const [mesRows] = await connection.execute(
             'SELECT SUM(total) as totalMes FROM fechamentos WHERE mes = ? AND ano = ?',
             [mesAtual, anoAtual]
@@ -65,8 +63,8 @@ app.get('/dashboard-summary', async (req, res) => {
         // 4. Envia todos os dados de uma vez
         res.json({
             totalProdutos: totalProdutos,
-            vendasDoDia: Number(vendasDoDia), // Garante que é número
-            vendasDoMes: Number(vendasDoMes), // Garante que é número
+            vendasDoDia: Number(vendasDoDia),
+            vendasDoMes: Number(vendasDoMes),
             totalEstoqueBaixo: totalEstoqueBaixo
         });
 
@@ -145,6 +143,58 @@ app.delete('/produtos/:sku', async (req, res) => {
         await connection.end();
 
         res.json({ message: 'Produto deletado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+/* * =====================================
+ * ROTAS DE ESTOQUE (NOVO BLOCO)
+ * =====================================
+ */
+
+// ROTA 5: REGISTRAR ENTRADA (POST)
+app.post('/estoque/entrada', async (req, res) => {
+    try {
+        // Pega os dados enviados pelo app.js
+        const { sku, quantidade } = req.body;
+        
+        const connection = await mysql.createConnection(dbConfig);
+        // SQL para SOMAR a quantidade no estoque
+        const sql = 'UPDATE produtos SET qtd = qtd + ? WHERE sku = ?';
+        await connection.execute(sql, [quantidade, sku]);
+        await connection.end();
+
+        res.json({ message: 'Entrada registrada com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ROTA 6: REGISTRAR SAÍDA/PERDA (POST)
+app.post('/estoque/saida', async (req, res) => {
+    try {
+        // Pega os dados da perda do app.js
+        const { sku, quantidade, motivo, nomeProduto, custoTotal } = req.body;
+        
+        const connection = await mysql.createConnection(dbConfig);
+        
+        // 1. Subtrai do estoque
+        const updateSql = 'UPDATE produtos SET qtd = qtd - ? WHERE sku = ?';
+        await connection.execute(updateSql, [quantidade, sku]);
+        
+        // 2. Registra na tabela de perdas
+        const insertSql = `
+            INSERT INTO perdas (data_perda, produto_sku, nome_produto, qtd, motivo, custo_total)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        const dataHoje = new Date().toLocaleDateString('pt-BR'); // Pega a data atual
+        await connection.execute(insertSql, [dataHoje, sku, nomeProduto, quantidade, motivo, custoTotal]);
+        
+        await connection.end();
+
+        res.json({ message: 'Saída registrada com sucesso!' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
