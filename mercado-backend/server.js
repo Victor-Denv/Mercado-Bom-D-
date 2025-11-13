@@ -301,7 +301,7 @@ app.put('/configuracoes', async (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE PERFIS (NOVO)
+ * ROTAS DE PERFIS
  * =====================================
  */
 app.get('/perfis', async (req, res) => {
@@ -315,13 +315,46 @@ app.get('/perfis', async (req, res) => {
     }
 });
 
+// --- ROTA ATUALIZADA (GET /perfis/:id) ---
+app.get('/perfis/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute('SELECT * FROM perfis WHERE id = ?', [id]);
+        await connection.end();
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Perfil não encontrado.' });
+        }
+        res.json(rows[0]); // Envia apenas o primeiro (e único) resultado
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/perfis', async (req, res) => {
     try {
-        const { nome } = req.body;
+        const { nome, foto_perfil } = req.body;
         const connection = await mysql.createConnection(dbConfig);
-        await connection.execute('INSERT INTO perfis (nome, cargo) VALUES (?, ?)', [nome, 'funcionario']);
+        // Agora salva o nome E a foto
+        await connection.execute('INSERT INTO perfis (nome, cargo, foto_perfil) VALUES (?, ?, ?)', [nome, 'funcionario', foto_perfil || null]);
         await connection.end();
         res.status(201).json({ message: 'Perfil criado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- ROTA ATUALIZADA (PUT /perfis/:id) ---
+app.put('/perfis/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nome, foto_perfil } = req.body;
+        
+        const connection = await mysql.createConnection(dbConfig);
+        await connection.execute('UPDATE perfis SET nome = ?, foto_perfil = ? WHERE id = ?', [nome, foto_perfil, id]);
+        await connection.end();
+        
+        res.json({ message: 'Perfil atualizado com sucesso!' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -330,7 +363,6 @@ app.post('/perfis', async (req, res) => {
 app.delete('/perfis/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        // (Você pode adicionar uma regra aqui para não deixar excluir o perfil 'Admin' no futuro)
         const connection = await mysql.createConnection(dbConfig);
         await connection.execute('DELETE FROM perfis WHERE id = ?', [id]);
         await connection.end();
@@ -341,29 +373,24 @@ app.delete('/perfis/:id', async (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE ATIVIDADES (ATUALIZADO)
+ * ROTAS DE ATIVIDADES
  * =====================================
  */
 app.post('/atividades', async (req, res) => {
     try {
-        // AGORA PEGAMOS O 'perfil_nome'
         const { icon, color, title, description, time, perfil_nome } = req.body; 
-        
         const connection = await mysql.createConnection(dbConfig);
         const sql = `
             INSERT INTO atividades (icon, color, title, description, time_string, perfil_nome)
             VALUES (?, ?, ?, ?, ?, ?)
         `;
-        // E SALVAMOS ELE AQUI
         await connection.execute(sql, [icon, color, title, description, time, perfil_nome]);
         await connection.end();
-        
         res.status(201).json({ message: 'Atividade registrada!' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.get('/atividades', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);

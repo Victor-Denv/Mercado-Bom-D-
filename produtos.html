@@ -31,23 +31,27 @@
     <main class="content">
         
         <header class="top-header">
-           <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
-                
-                <div id="global-search-results" class="suggestions-list" style="display: none;">
-                    </div>
-           </div>
-           <div class="user-info">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
+                <div id="global-search-results" class="suggestions-list" style="display: none;"></div>
+            </div>
+            
+            <div class="user-info">
                 <i class="fas fa-bell"></i>
-                <div class="profile">
-                    <img src="httpsa://via.placeholder.com/40" alt="Avatar" id="header-profile-pic">
-                    <div>
-                        <strong>Admin</strong>
-                        <small>Mercado BOM D+</small>
+                
+                <div class="profile-dropdown-container" id="profile-dropdown">
+                    <img src="https://via.placeholder.com/40" alt="Avatar" id="header-profile-pic">
+                    <strong id="header-profile-name">Carregando...</strong>
+                    <i class="fas fa-chevron-down"></i>
+
+                    <div class="profile-dropdown-content" id="profile-dropdown-list">
+                        <a href="#">
+                            <span>Carregando perfis...</span>
+                        </a>
                     </div>
                 </div>
-           </div>
+                </div>
         </header>
 
         <div class="page-header">

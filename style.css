@@ -1253,3 +1253,159 @@ tbody td {
     font-weight: 500;
     color: var(--text-dark);
 }
+/* === style.css === */
+/* Novos estilos para o seletor de perfil no header e upload de foto */
+
+/* --- Seletor de Perfil no Header --- */
+.profile-dropdown-container {
+    position: relative;
+    cursor: pointer;
+    margin-right: 15px; /* Ajuste para não colar na notificação */
+    display: flex; /* Para alinhar imagem e nome */
+    align-items: center;
+    gap: 10px; /* Espaçamento entre imagem e nome */
+}
+
+.profile-dropdown-container .profile-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--primary-color); /* Borda para destaque */
+}
+
+.profile-dropdown-container .profile-name {
+    font-weight: bold;
+    color: var(--text-dark);
+}
+
+.profile-dropdown-container .fas.fa-chevron-down {
+    color: var(--text-light);
+    margin-left: 5px;
+    transition: transform 0.2s ease-in-out;
+}
+
+.profile-dropdown-container.active .fas.fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.profile-dropdown-content {
+    display: none;
+    position: absolute;
+    top: 60px; /* Abaixo do header */
+    right: 0;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius);
+    min-width: 200px;
+    z-index: 1000;
+    padding: 10px 0;
+}
+
+.profile-dropdown-content a {
+    color: var(--text-dark);
+    padding: 10px 20px;
+    text-decoration: none;
+    display: flex; /* Para alinhar icone/foto e texto */
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-dropdown-content a:hover {
+    background-color: var(--light-bg);
+}
+
+.profile-dropdown-content .dropdown-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.profile-dropdown-content .current-profile-indicator {
+    margin-left: auto;
+    color: var(--primary-color);
+}
+
+.profile-dropdown-content .add-profile-link {
+    border-top: 1px solid var(--border-color);
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+/* --- Estilos para Upload de Foto de Perfil nas Configurações --- */
+.profile-pic-upload-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--light-bg);
+}
+
+.profile-pic-upload-container img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--primary-color);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.profile-pic-upload-container input[type="file"] {
+    display: none; /* Esconde o input de arquivo padrão */
+}
+
+.profile-pic-upload-container label.btn-secondary {
+    padding: 8px 15px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+
+.profile-pic-upload-container label.btn-secondary:hover {
+    background-color: var(--secondary-hover);
+}
+
+/* Ajustes para o card "Gerenciar Perfis" */
+.profile-list .profile-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.profile-list .profile-item:last-child {
+    border-bottom: none;
+}
+
+.profile-list .profile-item img {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 10px;
+}
+
+.profile-list .profile-item span {
+    flex-grow: 1;
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+.profile-list .profile-item .btn-action.delete {
+    background-color: transparent;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    padding: 5px;
+    font-size: 1.1em;
+}
+
+.profile-list .profile-item .btn-action.delete:hover {
+    color: var(--danger-hover);
+}

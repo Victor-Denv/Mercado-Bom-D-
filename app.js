@@ -8,34 +8,84 @@ const API_URL = 'http://localhost:3000';
 const CONFIG_KEY = 'marketConfig'; 
 
 /* * =====================================
- * TAREFA 15.1: CARREGAR FOTO NO HEADER
+ * TAREFA 15.1: CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN)
+ * (Atualizado para carregar a foto do perfil selecionado)
  * =====================================
  */
-function carregarDadosGlobaisUsuario() {
-    const config = JSON.parse(localStorage.getItem(CONFIG_KEY)) || {};
-    const headerPic = document.getElementById('header-profile-pic');
+async function carregarDadosGlobaisUsuario() {
+    const headerProfileName = document.getElementById('header-profile-name');
+    const headerProfilePic = document.getElementById('header-profile-pic');
     
-    if (headerPic && config.profilePic) {
-        headerPic.src = config.profilePic;
+    const currentProfileName = localStorage.getItem('currentProfile');
+    
+    if (currentProfileName && headerProfileName) {
+        headerProfileName.textContent = currentProfileName;
+    }
+
+    // Carrega a foto do perfil salvo
+    try {
+        const response = await fetch(`${API_URL}/perfis`);
+        const perfis = await response.json();
+        const perfilAtivo = perfis.find(p => p.nome === currentProfileName);
+
+        if (headerProfilePic) {
+            if (perfilAtivo && perfilAtivo.foto_perfil) {
+                headerProfilePic.src = perfilAtivo.foto_perfil;
+            } else {
+                headerProfilePic.src = 'https://via.placeholder.com/40'; // Foto padrão
+            }
+        }
+        
+        // --- NOVO: Carrega o Dropdown de Perfis ---
+        const profileDropdownList = document.getElementById('profile-dropdown-list');
+        if (profileDropdownList) {
+            profileDropdownList.innerHTML = ''; // Limpa o dropdown
+            perfis.forEach(perfil => {
+                const link = document.createElement('a');
+                link.href = "#";
+                link.innerHTML = `
+                    <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
+                    <span>${perfil.nome}</span>
+                    ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
+                `;
+                
+                // Adiciona o clique para TROCAR de perfil
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (perfil.nome !== currentProfileName) {
+                        localStorage.setItem('currentProfile', perfil.nome);
+                        window.location.reload(); // Recarrega a página com o novo perfil
+                    }
+                });
+                profileDropdownList.appendChild(link);
+            });
+
+            // Adiciona o link "Trocar de Perfil"
+            const switchLink = document.createElement('a');
+            switchLink.href = "perfis.html";
+            switchLink.className = "add-profile-link";
+            switchLink.innerHTML = `<i class="fas fa-users"></i> Trocar de Perfil`;
+            profileDropdownList.appendChild(switchLink);
+        }
+
+    } catch (error) {
+        console.error('Erro ao carregar dados de perfis:', error);
+        if (headerProfilePic) headerProfilePic.src = 'https://via.placeholder.com/40';
     }
 }
 carregarDadosGlobaisUsuario();
 
 
 // --- LÓGICA DA PÁGINA DE LOGIN ---
-// (Procura pelo ID do formulário de login)
-const loginForm = document.getElementById('form-login'); 
+const loginForm = document.getElementById('form-login');
 if (loginForm) {
     loginForm.addEventListener('submit', async function(event) {
         event.preventDefault(); 
         const email = document.getElementById('email').value;
         const senha = document.getElementById('senha').value;
 
-        // (No futuro, vamos trocar isso para chamar a API de login)
         if (email === 'admin' && senha === '123') {
-            alert('Login bem-sucedido! Selecione seu perfil.');
             localStorage.setItem('userToken', 'admin-logado-12345'); 
-            
             window.location.href = 'perfis.html';
         } else {
             alert('Usuário ou senha incorretos! Tente "admin" e "123".');
@@ -52,7 +102,7 @@ if (logoutButton) {
             localStorage.removeItem('userToken'); 
             localStorage.removeItem('currentProfile'); 
             localStorage.removeItem(CONFIG_KEY); 
-            window.location.href = 'index.html'; // MUDANÇA AQUI
+            window.location.href = 'index.html';
         }
     });
 }
@@ -97,6 +147,7 @@ function closeModal() {
         modalOverlay.style.display = 'none';
         modalOverlay.removeAttribute('data-sku');
         modalOverlay.removeAttribute('data-id'); 
+        modalOverlay.removeAttribute('data-profile-id'); // Limpa o ID do perfil
     }
 }
 
@@ -107,6 +158,7 @@ if (modalOverlay) {
     modalBtnConfirm.addEventListener('click', async () => {
         const skuParaDeletar = modalOverlay.dataset.sku;
         const idParaDeletar = modalOverlay.dataset.id; 
+        const profileIdParaDeletar = modalOverlay.dataset.profileId;
 
         if (skuParaDeletar) {
             try {
@@ -130,7 +182,7 @@ if (modalOverlay) {
             }
 
         } 
-        else if (idParaDeletar) {
+        else if (idParaDeletar) { // Deletar Categoria
             try {
                 const catResponse = await fetch(`${API_URL}/categorias`);
                 const categorias = await catResponse.json();
@@ -149,6 +201,39 @@ if (modalOverlay) {
                 window.location.reload(); 
             } catch (error) {
                 alert(`Erro ao deletar categoria: ${error.message}`);
+            }
+        }
+        else if (profileIdParaDeletar) { // Deletar Perfil
+            try {
+                const perfisResponse = await fetch(`${API_URL}/perfis`);
+                const perfis = await perfisResponse.json();
+                const perfilDeletado = perfis.find(p => p.id == profileIdParaDeletar);
+
+                if (perfilDeletado && (perfilDeletado.nome === 'Admin' || perfilDeletado.nome === 'Vitor')) {
+                    alert('Não é possível excluir perfis principais.');
+                    closeModal();
+                    return;
+                }
+
+                const response = await fetch(`${API_URL}/perfis/${profileIdParaDeletar}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+
+                if (perfilDeletado) {
+                    await logActivity('fas fa-user-minus', 'red', 'Perfil Excluído', `O perfil "${perfilDeletado.nome}" foi removido.`);
+                }
+                alert('Perfil excluído com sucesso!');
+                carregarGerenciarPerfis(); // Recarrega a lista de perfis
+                closeModal();
+                // Se o perfil excluído era o perfil ativo, redireciona para a seleção
+                if (localStorage.getItem('currentProfile') === perfilDeletado.nome) {
+                    localStorage.removeItem('currentProfile');
+                    window.location.href = 'perfis.html';
+                }
+            } catch (error) {
+                alert(`Erro ao deletar perfil: ${error.message}`);
             }
         }
         
@@ -1087,7 +1172,7 @@ if (profileGrid) {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
                 card.innerHTML = `
-                    <i class="fas fa-user-circle"></i>
+                    <img src="${perfil.foto_perfil || 'https://via.placeholder.com/100'}" alt="${perfil.nome}" class="profile-card-pic">
                     <span>${perfil.nome}</span>
                 `;
                 // 2. Adiciona o clique para SELECIONAR o perfil
@@ -1118,26 +1203,27 @@ async function carregarGerenciarPerfis() {
         perfis.forEach(perfil => {
             const li = document.createElement('li');
             li.innerHTML = `
+                <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
                 <span>${perfil.nome}</span>
+                <button class="btn-action edit" data-id="${perfil.id}"><i class="fas fa-pencil-alt"></i></button>
                 <button class="btn-action delete" data-id="${perfil.id}"><i class="fas fa-trash-alt"></i></button>
             `;
             profileList.appendChild(li);
 
+            // Ativa o botão de editar
+            li.querySelector('.btn-action.edit').addEventListener('click', () => {
+                window.location.href = `editar-perfil.html?id=${perfil.id}`;
+            });
+
             // Ativa o botão de deletar
-            li.querySelector('.btn-action.delete').addEventListener('click', async () => {
-                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { // Regra de segurança
+            li.querySelector('.btn-action.delete').addEventListener('click', () => {
+                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { 
                     alert('Não é possível excluir o perfil principal.');
                     return;
                 }
-                if (confirm(`Tem certeza que quer excluir o perfil "${perfil.nome}"?`)) {
-                    try {
-                        await fetch(`${API_URL}/perfis/${perfil.id}`, { method: 'DELETE' });
-                        alert('Perfil excluído!');
-                        carregarGerenciarPerfis(); // Recarrega a lista
-                    } catch (e) {
-                        alert('Erro ao excluir perfil.');
-                    }
-                }
+                // Reutiliza o modal de confirmação
+                modalOverlay.dataset.profileId = perfil.id; // Salva o ID do perfil no modal
+                openModal();
             });
         });
     } catch (e) {
@@ -1160,12 +1246,119 @@ if (formAddPerfil) {
             await fetch(`${API_URL}/perfis`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome: nome })
+                body: JSON.stringify({ 
+                    nome: nome,
+                    foto_perfil: 'https://via.placeholder.com/100' // Adiciona uma foto padrão
+                })
             });
             input.value = ''; // Limpa o campo
             carregarGerenciarPerfis(); // Recarrega a lista
         } catch (e) {
             alert('Erro ao adicionar perfil.');
+        }
+    });
+}
+
+/* * =====================================
+ * TAREFA 19: LÓGICA DE EDITAR PERFIL (NOVO)
+ * =====================================
+ */
+const formEditPerfil = document.getElementById('form-edit-perfil');
+if (formEditPerfil) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const perfilId = urlParams.get('id');
+    const preview = document.getElementById('profile-pic-preview');
+    const nomeInput = document.getElementById('nome-perfil');
+    let fotoBase64 = null; // Variável para guardar a nova foto
+
+    // 1. Carrega os dados do perfil
+    async function carregarPerfilParaEditar() {
+        if (!perfilId) {
+            alert('ID do perfil não fornecido.');
+            window.location.href = 'configuracoes.html';
+            return;
+        }
+        try {
+            const response = await fetch(`${API_URL}/perfis/${perfilId}`);
+            const perfil = await response.json();
+            if (!response.ok) throw new Error(perfil.error);
+
+            nomeInput.value = perfil.nome;
+            preview.src = perfil.foto_perfil || 'https://via.placeholder.com/100';
+            fotoBase64 = preview.src; // Salva a foto atual
+
+        } catch (e) {
+            alert('Erro ao carregar perfil: ' + e.message);
+        }
+    }
+    carregarPerfilParaEditar();
+
+    // 2. Lógica para ler a nova foto
+    const fotoInput = document.getElementById('profile-pic-input');
+    fotoInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                preview.src = reader.result; // Mostra a prévia
+                fotoBase64 = reader.result; // Salva o texto Base64
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 3. Lógica para salvar
+    formEditPerfil.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const nome = nomeInput.value;
+        if (!nome) {
+            alert('O nome do perfil não pode ficar em branco.');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/perfis/${perfilId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nome: nome,
+                    foto_perfil: fotoBase64 // Envia o texto Base64 da imagem
+                })
+            });
+            if (!response.ok) throw new Error('Falha ao salvar');
+            
+            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nome}" foi atualizado.`);
+            alert('Perfil salvo com sucesso!');
+            window.location.href = 'configuracoes.html';
+
+        } catch (e) {
+            alert('Erro ao salvar o perfil: ' + e.message);
+        }
+    });
+}
+
+/* * =====================================
+ * LÓGICA DO DROPDOWN DE PERFIL (NOVO)
+ * =====================================
+ */
+const profileDropdown = document.getElementById('profile-dropdown');
+if (profileDropdown) {
+    const dropdownContent = document.getElementById('profile-dropdown-list');
+    profileDropdown.addEventListener('click', (event) => {
+        // Impede que clicar em um link dentro do dropdown o feche
+        if (event.target.tagName === 'A') return;
+        
+        // Alterna a exibição
+        const isShown = dropdownContent.style.display === 'block';
+        dropdownContent.style.display = isShown ? 'none' : 'block';
+        profileDropdown.classList.toggle('active', !isShown);
+    });
+
+    // Fecha se clicar fora
+    document.addEventListener('click', (event) => {
+        if (!profileDropdown.contains(event.target)) {
+            dropdownContent.style.display = 'none';
+            profileDropdown.classList.remove('active');
         }
     });
 }
