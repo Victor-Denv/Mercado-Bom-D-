@@ -12,7 +12,7 @@ app.use(express.json());
 const dbConfig = {
     host: 'localhost',
     user: 'root',
-    password: 'SUA_SENHA_ROOT_AQUI', // <-- CONFIRME SE SUA SENHA ESTÁ AQUI
+    password: 'vitor', // <-- CONFIRME SE SUA SENHA ESTÁ AQUI
     database: 'mercado_db'
 };
 
