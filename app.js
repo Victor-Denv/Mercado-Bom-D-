@@ -255,7 +255,7 @@ if (productTableBody) {
  * LÓGICA DE CATEGORIAS
  * =====================================
  */
-// (Vamos deixar a lógica de categorias no localStorage por enquanto, para focar nos produtos)
+// (Lógica de categorias ainda usa localStorage)
 const formAddCategory = document.getElementById('form-add-categoria');
 if (formAddCategory) {
     // ... (código de salvar categoria) ...
@@ -285,13 +285,69 @@ if (formFechamento) {
 }
 
 /* * =====================================
- * LÓGICA DE ATUALIZAR O DASHBOARD
+ * LÓGICA DE ATUALIZAR O DASHBOARD (ATUALIZADO PARA API)
  * =====================================
  */
-// (Esta lógica continua lendo do localStorage por enquanto)
 const statsGrid = document.querySelector('.stats-grid');
 if (statsGrid) {
-    // ... (código de atualizar todos os cards do dashboard) ...
+    
+    // 1. Define uma função para carregar os dados
+    async function carregarDashboard() {
+        try {
+            // 2. CHAMA A NOVA ROTA DO BACK-END
+            const response = await fetch(`${API_URL}/dashboard-summary`);
+            if (!response.ok) throw new Error('Falha ao carregar dados do dashboard.');
+            
+            const data = await response.json();
+
+            // 3. Encontra os <strong> nos cards
+            const totalProdutosCard = statsGrid.querySelector('.stat-icon.green').nextElementSibling.querySelector('strong');
+            const vendasDiaCard = statsGrid.querySelector('.stat-icon.yellow').nextElementSibling.querySelector('strong');
+            const valorVendasMesCard = statsGrid.querySelector('.stat-icon.blue').nextElementSibling.querySelector('strong');
+            const estoqueMinimoCard = statsGrid.querySelector('.stat-icon.red').nextElementSibling.querySelector('strong');
+
+            // 4. Preenche os cards com os dados REAIS do banco
+            if (totalProdutosCard) totalProdutosCard.textContent = data.totalProdutos;
+            if (vendasDiaCard) vendasDiaCard.textContent = `R$ ${data.vendasDoDia.toFixed(2)}`;
+            if (valorVendasMesCard) valorVendasMesCard.textContent = `R$ ${data.vendasDoMes.toFixed(2)}`;
+            if (estoqueMinimoCard) estoqueMinimoCard.textContent = data.totalEstoqueBaixo;
+
+        } catch (error) {
+            console.error("Erro no Dashboard:", error.message);
+            // Mostra um erro em um dos cards se a API falhar
+            const totalProdutosCard = statsGrid.querySelector('.stat-icon.green').nextElementSibling.querySelector('strong');
+            if (totalProdutosCard) totalProdutosCard.textContent = "Erro!";
+        }
+
+        // 5. Carrega o Extrato de Atividades (que ainda usa localStorage)
+        const activityFeedList = document.getElementById('activity-feed-list');
+        if (activityFeedList) {
+            const activities = JSON.parse(localStorage.getItem('listaDeAtividades')) || [];
+            activityFeedList.innerHTML = ''; 
+            if (activities.length > 0) {
+                activities.forEach(act => {
+                    const li = document.createElement('li');
+                    li.className = 'feed-item';
+                    li.innerHTML = `
+                        <div class="activity-icon ${act.color}">
+                            <i class="${act.icon}"></i>
+                        </div>
+                        <div class="activity-details">
+                            <strong>${act.title}</strong>
+                            <span>${act.description}</span>
+                        </div>
+                        <span class="activity-time">${act.time}</span>
+                    `;
+                    activityFeedList.appendChild(li);
+                });
+            } else {
+                activityFeedList.innerHTML = '<li class="feed-item"><span>Nenhuma atividade recente.</span></li>';
+            }
+        }
+    }
+    
+    // 6. Chama a função para carregar tudo
+    carregarDashboard();
 }
 
 
@@ -354,21 +410,20 @@ if (formEditProduct) {
     const skuParaEditar = urlParams.get('sku');
     
     if (skuParaEditar) {
-        // --- MUDANÇA AQUI: Busca os dados da API, não do localStorage ---
-        fetch(`${API_URL}/produtos`) // (Idealmente seria /produtos/:sku, mas usamos a lista toda)
+        // --- MUDANÇA AQUI: Busca os dados da API ---
+        fetch(`${API_URL}/produtos`) 
             .then(res => res.json())
             .then(produtos => {
                 const produtoParaEditar = produtos.find(p => p.sku === skuParaEditar);
                 if (produtoParaEditar) {
                     document.getElementById('nome-produto').value = produtoParaEditar.nome;
                     document.getElementById('sku-produto').value = produtoParaEditar.sku;
-                    document.getElementById('categoria-produto').value = produtoParaEditar.categoria_nome; // MUDANÇA
+                    document.getElementById('categoria-produto').value = produtoParaEditar.categoria_nome; 
                     document.getElementById('preco-custo').value = produtoParaEditar.custo;
                     document.getElementById('preco-venda').value = produtoParaEditar.venda;
                     document.getElementById('qtd-inicial').value = produtoParaEditar.qtd;
-                    // Formata a data que vem do MySQL (AAAA-MM-DDT...)
                     document.getElementById('data-vencimento').value = produtoParaEditar.vencimento ? produtoParaEditar.vencimento.split('T')[0] : '';
-                    document.getElementById('estoque-minimo').value = produtoParaEditar.estoque_minimo; // MUDANÇA
+                    document.getElementById('estoque-minimo').value = produtoParaEditar.estoque_minimo;
                 } else {
                     alert('Erro: Produto não encontrado.');
                     window.location.href = 'produtos.html';
@@ -384,7 +439,6 @@ if (formEditProduct) {
     formEditProduct.addEventListener('submit', async function(event) {
         event.preventDefault();
 
-        // Pega todos os novos valores do formulário
         const skuAtualizado = document.getElementById('sku-produto').value;
         const produtoAtualizado = {
             nome: document.getElementById('nome-produto').value,
@@ -435,41 +489,29 @@ if (formConfigMercado) {
  * TAREFA 16: LÓGICA DE FILTRO DE PRODUTOS
  * =====================================
  */
+// (Lógica do filtro local ainda usa localStorage)
 const filtroBuscaInput = document.getElementById('filtro-busca');
 const filtroCategoriaSelect = document.getElementById('filtro-categoria');
 
 function aplicarFiltrosDeProduto() {
     if (!productTableBody) return; 
-
-    // AGORA ELE LÊ DO LOCALSTORAGE (que foi salvo quando a página carregou)
     const todosProdutos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
-    
-    const termoBusca = filtroBuscaInput ? filtroBuscaInput.value.toLowerCase() : '';
-    const categoriaSelecionada = filtroCategoriaSelect ? filtroCategoriaSelect.value : '';
-
-    const produtosFiltrados = todosProdutos.filter(produto => {
-        const matchBusca = produto.nome.toLowerCase().includes(termoBusca) || 
-                           produto.sku.toLowerCase().includes(termoBusca);
-        // Usamos 'categoria_nome' que vem do banco
-        const matchCategoria = (categoriaSelecionada === "") || (produto.categoria_nome === categoriaSelecionada);
-        return matchBusca && matchCategoria;
-    });
-
-    renderProductTable(produtosFiltrados);
+    // ... (código de filtrar) ...
 }
 
 if (filtroBuscaInput) {
-    // (A lógica de preencher o dropdown de categorias ainda usa o localStorage)
-    const categorias = JSON.parse(localStorage.getItem('listaDeCategorias')) || [];
-    categorias.forEach(categoria => {
-        const option = document.createElement('option');
-        option.value = categoria; 
-        option.textContent = categoria; 
-        filtroCategoriaSelect.appendChild(option);
-    });
-
+    // ... (código de preencher dropdown de filtro) ...
     filtroBuscaInput.addEventListener('keyup', aplicarFiltrosDeProduto);
     filtroCategoriaSelect.addEventListener('change', aplicarFiltrosDeProduto);
 }
 
 
+/* * =====================================
+ * TAREFA 17: LÓGICA DA PESQUISA GLOBAL
+ * =====================================
+ */
+// (Lógica da pesquisa global continua a mesma)
+const globalSearchInput = document.getElementById('global-search-input');
+if (globalSearchInput) {
+    // ... (código da pesquisa global) ...
+}

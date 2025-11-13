@@ -26,7 +26,58 @@ app.get('/', (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE PRODUTOS (NOVO)
+ * ROTA PARA O DASHBOARD (NOVO)
+ * =====================================
+ */
+app.get('/dashboard-summary', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+
+        // 1. Contar o total de produtos
+        const [produtoRows] = await connection.execute('SELECT COUNT(*) as totalProdutos FROM produtos');
+        const totalProdutos = produtoRows[0].totalProdutos;
+
+        // 2. Pegar os dados de fechamento (para Vendas do Dia e Mês)
+        const dataObj = new Date();
+        const dataHoje = dataObj.toLocaleDateString('pt-BR'); // Ex: "12/11/2025"
+        const mesAtual = dataObj.getMonth() + 1; // JS conta mês de 0-11, então somamos 1
+        const anoAtual = dataObj.getFullYear();
+
+        // Pega o fechamento de HOJE
+        const [diaRows] = await connection.execute('SELECT total FROM fechamentos WHERE data_fechamento = ?', [dataHoje]);
+        const vendasDoDia = (diaRows.length > 0) ? diaRows[0].total : 0;
+        
+        // Soma os totais do MÊS ATUAL
+        const [mesRows] = await connection.execute(
+            'SELECT SUM(total) as totalMes FROM fechamentos WHERE mes = ? AND ano = ?',
+            [mesAtual, anoAtual]
+        );
+        const vendasDoMes = mesRows[0].totalMes || 0;
+
+        // 3. Contar itens com estoque baixo
+        const [estoqueRows] = await connection.execute(
+            'SELECT COUNT(*) as totalEstoqueBaixo FROM produtos WHERE qtd <= estoque_minimo'
+        );
+        const totalEstoqueBaixo = estoqueRows[0].totalEstoqueBaixo;
+
+        await connection.end();
+
+        // 4. Envia todos os dados de uma vez
+        res.json({
+            totalProdutos: totalProdutos,
+            vendasDoDia: vendasDoDia,
+            vendasDoMes: vendasDoMes,
+            totalEstoqueBaixo: totalEstoqueBaixo
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+/* * =====================================
+ * ROTAS DE PRODUTOS
  * =====================================
  */
 
@@ -37,7 +88,6 @@ app.get('/produtos', async (req, res) => {
         const [rows] = await connection.execute('SELECT * FROM produtos');
         await connection.end();
         
-        // Envia a lista de produtos como JSON
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -47,7 +97,6 @@ app.get('/produtos', async (req, res) => {
 // ROTA 2: CRIAR UM NOVO PRODUTO (POST)
 app.post('/produtos', async (req, res) => {
     try {
-        // Pega os dados do front-end (do app.js)
         const { nome, sku, categoria, custo, venda, qtd, vencimento, estoqueMinimo } = req.body;
         
         const connection = await mysql.createConnection(dbConfig);
@@ -67,7 +116,7 @@ app.post('/produtos', async (req, res) => {
 // ROTA 3: ATUALIZAR UM PRODUTO (PUT)
 app.put('/produtos/:sku', async (req, res) => {
     try {
-        const { sku } = req.params; // Pega o SKU da URL
+        const { sku } = req.params;
         const { nome, categoria, custo, venda, qtd, vencimento, estoqueMinimo } = req.body;
         
         const connection = await mysql.createConnection(dbConfig);
@@ -88,15 +137,10 @@ app.put('/produtos/:sku', async (req, res) => {
 // ROTA 4: DELETAR UM PRODUTO (DELETE)
 app.delete('/produtos/:sku', async (req, res) => {
     try {
-        const { sku } = req.params; // Pega o SKU da URL
+        const { sku } = req.params;
         
         const connection = await mysql.createConnection(dbConfig);
-        
-        // --- IMPORTANTE: Precisamos deletar as PERDAS primeiro ---
-        // (Por causa da "FOREIGN KEY" que criamos)
         await connection.execute('DELETE FROM perdas WHERE produto_sku = ?', [sku]);
-        
-        // Agora podemos deletar o produto
         await connection.execute('DELETE FROM produtos WHERE sku = ?', [sku]);
         await connection.end();
 
