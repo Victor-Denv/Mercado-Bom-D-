@@ -9,6 +9,53 @@ const CONFIG_KEY = 'marketConfig';
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 
 /* * =====================================
+ * NOVA FUNÇÃO MÁGICA: REDIMENSIONAR IMAGEM
+ * =====================================
+ */
+function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                // Calcula o redimensionamento
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                // Cria um "canvas" (desenho) invisível
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                // Desenha a imagem grande no canvas pequeno
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Converte o canvas pequeno para um texto Base64
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = (error) => reject(error);
+            img.src = event.target.result; // Carrega a imagem
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file); // Lê o arquivo
+    });
+}
+
+
+/* * =====================================
  * TAREFA 15.1: CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN)
  * =====================================
  */
@@ -22,7 +69,6 @@ async function carregarDadosGlobaisUsuario() {
         headerProfileName.textContent = currentProfileName;
     }
 
-    // Carrega a foto do perfil salvo
     try {
         const response = await fetch(`${API_URL}/perfis`);
         const perfis = await response.json();
@@ -32,14 +78,13 @@ async function carregarDadosGlobaisUsuario() {
             if (perfilAtivo && perfilAtivo.foto_perfil) {
                 headerProfilePic.src = perfilAtivo.foto_perfil;
             } else {
-                headerProfilePic.src = 'https://via.placeholder.com/40'; // Foto padrão
+                headerProfilePic.src = 'https://via.placeholder.com/40'; 
             }
         }
         
-        // --- Carrega o Dropdown de Perfis ---
         const profileDropdownList = document.getElementById('profile-dropdown-list');
         if (profileDropdownList) {
-            profileDropdownList.innerHTML = ''; // Limpa o dropdown
+            profileDropdownList.innerHTML = ''; 
             perfis.forEach(perfil => {
                 const link = document.createElement('a');
                 link.href = "#";
@@ -49,12 +94,11 @@ async function carregarDadosGlobaisUsuario() {
                     ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
                 `;
                 
-                // Adiciona o clique para TROCAR de perfil
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     if (perfil.nome !== currentProfileName) {
                         localStorage.setItem('currentProfile', perfil.nome);
-                        window.location.reload(); // Recarrega a página com o novo perfil
+                        window.location.reload(); 
                     }
                 });
                 profileDropdownList.appendChild(link);
@@ -76,25 +120,21 @@ carregarDadosGlobaisUsuario();
 
 
 /* * =====================================
- * LÓGICA DO DROPDOWN DE PERFIL (A LÓGICA QUE FALTAVA)
+ * LÓGICA DO DROPDOWN DE PERFIL
  * =====================================
  */
 const profileDropdown = document.getElementById('profile-dropdown');
 if (profileDropdown) {
     const dropdownContent = document.getElementById('profile-dropdown-list');
     
-    // Mostra/Esconde o menu ao clicar no container principal
     profileDropdown.addEventListener('click', (event) => {
-        // Impede que clicar em um link dentro do dropdown o feche
         if (event.target.tagName === 'A' || event.target.closest('a')) return;
         
-        // Alterna a exibição
         const isShown = dropdownContent.style.display === 'block';
         dropdownContent.style.display = isShown ? 'none' : 'block';
         profileDropdown.classList.toggle('active', !isShown);
     });
 
-    // Fecha se clicar fora
     document.addEventListener('click', (event) => {
         if (!profileDropdown.contains(event.target)) {
             dropdownContent.style.display = 'none';
@@ -264,7 +304,7 @@ if (modalOverlay) {
             }
         }
         
-        //closeModal(); // Removido daqui, pois já está dentro de cada if
+        // closeModal(); // Removido daqui, pois já está dentro de cada if
     });
 }
 
@@ -544,7 +584,6 @@ if (statsGrid) {
                     activities.forEach(act => {
                         const li = document.createElement('li');
                         li.className = 'feed-item';
-                        // ATUALIZADO: Mostra o nome do perfil
                         li.innerHTML = `
                             <div class="activity-icon ${act.color}">
                                 <i class="${act.icon}"></i>
@@ -968,25 +1007,41 @@ if (formConfigMercado) {
     }
     carregarConfiguracoes();
 }
+
 const profilePicInput = document.getElementById('profile-pic-input');
 const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); 
 
 if (profilePicInput) {
-    profilePicInput.addEventListener('change', function(event) {
+    profilePicInput.addEventListener('change', async function(event) {
         const file = event.target.files[0]; 
-        if (file) {
-            const reader = new FileReader(); 
-            reader.onloadend = function() {
-                document.getElementById('profile-pic-preview').src = reader.result;
+        const preview = document.getElementById('profile-pic-preview');
+        if (!file || !preview) return;
+
+        try {
+            // Redimensiona para 200x200, 80% qualidade
+            const resizedBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
+            preview.src = resizedBase64;
+            
+            // Salva no formulário (se for o form de editar perfil)
+            if(window.formEditPerfil) {
+                window.fotoBase64 = resizedBase64;
             }
-            reader.readAsDataURL(file);
+        } catch (e) {
+            alert('Erro ao processar imagem. Tente JPG ou PNG.');
         }
     });
 }
+// Lógica do botão Remover
 if(profilePicRemoveBtn) {
     profilePicRemoveBtn.addEventListener('click', () => {
-        document.getElementById('profile-pic-preview').src = PLACEHOLDER_IMG;
+        const preview = document.getElementById('profile-pic-preview');
+        preview.src = PLACEHOLDER_IMG;
         profilePicInput.value = null; 
+        
+        // Se for o form de editar perfil, atualiza a variável
+        if(window.formEditPerfil) {
+            window.fotoBase64 = null;
+        }
     });
 }
 
@@ -1203,13 +1258,12 @@ if (globalSearchInput) {
  */
 const profileGrid = document.getElementById('profile-grid');
 if (profileGrid) {
-    // 1. Carrega os perfis da API
     async function carregarPerfis() {
         try {
             const response = await fetch(`${API_URL}/perfis`);
             const perfis = await response.json();
             
-            profileGrid.innerHTML = ''; // Limpa a grade
+            profileGrid.innerHTML = ''; 
             perfis.forEach(perfil => {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
@@ -1217,7 +1271,6 @@ if (profileGrid) {
                     <img src="${perfil.foto_perfil || PLACEHOLDER_IMG}" alt="${perfil.nome}" class="profile-card-pic" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 15px;">
                     <span>${perfil.nome}</span>
                 `;
-                // 2. Adiciona o clique para SELECIONAR o perfil
                 card.addEventListener('click', () => {
                     localStorage.setItem('currentProfile', perfil.nome);
                     window.location.href = 'dashboard.html';
@@ -1231,12 +1284,11 @@ if (profileGrid) {
     carregarPerfis();
 }
 
-// Lógica de "Gerenciar Perfis" na página de Configurações
 const formAddPerfil = document.getElementById('form-add-perfil');
 const profileList = document.getElementById('profile-list');
 
 async function carregarGerenciarPerfis() {
-    if (!profileList) return; // Só roda se a lista existir
+    if (!profileList) return; 
     try {
         const response = await fetch(`${API_URL}/perfis`);
         const perfis = await response.json();
@@ -1244,7 +1296,7 @@ async function carregarGerenciarPerfis() {
         profileList.innerHTML = '';
         perfis.forEach(perfil => {
             const li = document.createElement('li');
-            li.className = 'profile-item'; // Adiciona a classe para o estilo
+            li.className = 'profile-item'; 
             li.innerHTML = `
                 <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
                 <span>${perfil.nome}</span>
@@ -1259,7 +1311,7 @@ async function carregarGerenciarPerfis() {
             });
             // Ativa o botão de deletar
             li.querySelector('.btn-action.delete').addEventListener('click', () => {
-                modalOverlay.dataset.profileId = perfil.id; // Salva o ID do perfil no modal
+                modalOverlay.dataset.profileId = perfil.id; 
                 openModal();
             });
         });
@@ -1267,10 +1319,8 @@ async function carregarGerenciarPerfis() {
         profileList.innerHTML = '<li><span>Erro ao carregar.</span></li>';
     }
 }
-// Carrega a lista de perfis na pág de config
 if(profileList) carregarGerenciarPerfis();
 
-// Lógica para ADICIONAR novo perfil
 if (formAddPerfil) {
     formAddPerfil.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -1283,7 +1333,7 @@ if (formAddPerfil) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     nome: nome,
-                    foto_perfil: PLACEHOLDER_IMG // Adiciona uma foto padrão
+                    foto_perfil: PLACEHOLDER_IMG 
                 })
             });
             input.value = ''; 
@@ -1295,7 +1345,7 @@ if (formAddPerfil) {
 }
 
 /* * =====================================
- * TAREFA 19: LÓGICA DE EDITAR PERFIL (NOVO)
+ * TAREFA 19: LÓGICA DE EDITAR PERFIL
  * =====================================
  */
 const formEditPerfil = document.getElementById('form-edit-perfil');
@@ -1330,15 +1380,18 @@ if (formEditPerfil) {
 
     // 2. Lógica para ler a nova foto
     const fotoInput = document.getElementById('profile-pic-input');
-    fotoInput.addEventListener('change', (event) => {
+    fotoInput.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                preview.src = reader.result; 
-                fotoBase64 = reader.result; 
-            };
-            reader.readAsDataURL(file);
+            try {
+                // AQUI ESTÁ A MUDANÇA: Redimensiona a imagem
+                const resizedBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
+                preview.src = resizedBase64; 
+                fotoBase64 = resizedBase64; 
+            } catch (e) {
+                alert('Erro ao processar imagem. Tente JPG ou PNG.');
+                preview.src = fotoBase64 || PLACEHOLDER_IMG; // Volta para a foto antiga
+            }
         }
     });
 
@@ -1367,7 +1420,7 @@ if (formEditPerfil) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nome: nome,
-                    foto_perfil: fotoBase64 // Envia o texto Base64 ou null
+                    foto_perfil: fotoBase64 // Envia o texto Base64 (ou null)
                 })
             });
             if (!response.ok) throw new Error('Falha ao salvar');
