@@ -23,7 +23,8 @@ carregarDadosGlobaisUsuario();
 
 
 // --- LÓGICA DA PÁGINA DE LOGIN ---
-const loginForm = document.getElementById('form-login');
+// (Procura pelo ID do formulário de login)
+const loginForm = document.getElementById('form-login'); 
 if (loginForm) {
     loginForm.addEventListener('submit', async function(event) {
         event.preventDefault(); 
@@ -35,7 +36,6 @@ if (loginForm) {
             alert('Login bem-sucedido! Selecione seu perfil.');
             localStorage.setItem('userToken', 'admin-logado-12345'); 
             
-            // --- MUDANÇA: Redireciona para PERFIS ---
             window.location.href = 'perfis.html';
         } else {
             alert('Usuário ou senha incorretos! Tente "admin" e "123".');
@@ -49,32 +49,28 @@ if (logoutButton) {
     logoutButton.addEventListener('click', function(event) {
         event.preventDefault(); 
         if (confirm('Você tem certeza que deseja sair?')) {
-            localStorage.removeItem('userToken'); // Limpa o token de login
-            localStorage.removeItem('currentProfile'); // Limpa o perfil
-            localStorage.removeItem(CONFIG_KEY); // Limpa a foto de perfil salva
-            window.location.href = 'login.html';
+            localStorage.removeItem('userToken'); 
+            localStorage.removeItem('currentProfile'); 
+            localStorage.removeItem(CONFIG_KEY); 
+            window.location.href = 'index.html'; // MUDANÇA AQUI
         }
     });
 }
 
 /* * =====================================
- * TAREFA 18: LÓGICA DE REGISTRO DE ATIVIDADES (ATUALIZADO)
+ * TAREFA 18: LÓGICA DE REGISTRO DE ATIVIDADES
  * =====================================
  */
 async function logActivity(icon, color, title, description) {
     try {
-        // 1. Pega o perfil que está logado
         const perfil = localStorage.getItem('currentProfile') || 'Sistema'; 
-        
         const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-        // 2. Adiciona o nome do perfil no "malote"
         const newActivity = { icon, color, title, description, time, perfil_nome: perfil }; 
 
         await fetch(`${API_URL}/atividades`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newActivity) // 3. Envia para o back-end
+            body: JSON.stringify(newActivity) 
         });
     } catch (error) {
         console.error('Falha ao registrar atividade:', error.message);
@@ -769,6 +765,7 @@ if (formEditProduct) {
     if (skuParaEditar) {
         async function carregarProdutoParaEditar() {
             try {
+                // (Precisamos buscar todos os produtos para achar o certo)
                 const response = await fetch(`${API_URL}/produtos`);
                 const produtos = await response.json();
                 const produtoParaEditar = produtos.find(p => p.sku === skuParaEditar);
@@ -951,7 +948,7 @@ if (btnLimparSistema) {
                 // (Isso deve chamar uma rota de API, mas por enquanto limpa o localStorage)
                 localStorage.clear();
                 alert('Sistema limpo. Você será redirecionado para a tela de login.');
-                window.location.href = 'login.html';
+                window.location.href = 'index.html'; // MUDANÇA AQUI
             }
         }
     });
@@ -1074,7 +1071,7 @@ if (globalSearchInput) {
 }
 
 /* * =====================================
- * TAREFA 18: LÓGICA DE PERFIS (A QUE FALTAVA)
+ * TAREFA 18: LÓGICA DE PERFIS
  * =====================================
  */
 const profileGrid = document.getElementById('profile-grid');
@@ -1128,8 +1125,7 @@ async function carregarGerenciarPerfis() {
 
             // Ativa o botão de deletar
             li.querySelector('.btn-action.delete').addEventListener('click', async () => {
-                // (Regra de segurança simples)
-                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { 
+                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { // Regra de segurança
                     alert('Não é possível excluir o perfil principal.');
                     return;
                 }

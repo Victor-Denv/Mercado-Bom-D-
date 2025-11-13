@@ -1,5 +1,5 @@
 /* === auth-guard.js === */
-/* (ATUALIZADO: Com a correção do "loop") */
+/* (ATUALIZADO: Agora usa index.html) */
 
 // Pega o nome do arquivo da página atual
 const currentPage = window.location.pathname.split('/').pop();
@@ -11,25 +11,25 @@ const isAuthenticated = localStorage.getItem('userToken');
 const currentProfile = localStorage.getItem('currentProfile');
 
 if (!isAuthenticated) {
-    // REGRA 1: Se não tem login (token), EXPULSA para o login.
-    if (currentPage !== 'index.html') {
+    // REGRA 1: Se não tem login (token), EXPULSA para o index.
+    // (A única exceção é a própria página de login/index)
+    if (currentPage !== 'index.html' && currentPage !== '') { // ('' é para o caso de /)
         alert('Você precisa estar logado para acessar esta página.');
-        window.location.href = 'index.html';
+        window.location.href = 'index.html'; // MUDANÇA AQUI
     }
 } else {
     // REGRA 2: Se ESTÁ logado, mas não selecionou um PERFIL...
     if (
         !currentProfile && 
         currentPage !== 'perfis.html' && 
-        currentPage !== 'configuracoes.html' // <-- AQUI ESTÁ A CORREÇÃO
+        currentPage !== 'configuracoes.html'
     ) {
         // ...EXPULSA para a seleção de perfis.
-        // (Ele agora PERMITE o acesso ao config.html)
         window.location.href = 'perfis.html';
     }
 
     // REGRA 3: Se ESTÁ logado E tem um perfil, mas tenta ver o login...
-    if (currentPage === 'index.html') {
+    if (currentPage === 'index.html' || currentPage === '') {
         // ...MANDA para o dashboard.
         window.location.href = 'dashboard.html';
     }
