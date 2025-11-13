@@ -6,12 +6,10 @@ const API_URL = 'http://localhost:3000';
 
 // Define o nome da chave de Configurações
 const CONFIG_KEY = 'marketConfig'; 
-
-// --- NOVO: Define a imagem padrão
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 
 /* * =====================================
- * TAREFA 15.1: CARREGAR FOTO NO HEADER
+ * TAREFA 15.1: CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN)
  * =====================================
  */
 async function carregarDadosGlobaisUsuario() {
@@ -38,6 +36,7 @@ async function carregarDadosGlobaisUsuario() {
             }
         }
         
+        // --- Carrega o Dropdown de Perfis ---
         const profileDropdownList = document.getElementById('profile-dropdown-list');
         if (profileDropdownList) {
             profileDropdownList.innerHTML = ''; // Limpa o dropdown
@@ -50,11 +49,12 @@ async function carregarDadosGlobaisUsuario() {
                     ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
                 `;
                 
+                // Adiciona o clique para TROCAR de perfil
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     if (perfil.nome !== currentProfileName) {
                         localStorage.setItem('currentProfile', perfil.nome);
-                        window.location.reload(); 
+                        window.location.reload(); // Recarrega a página com o novo perfil
                     }
                 });
                 profileDropdownList.appendChild(link);
@@ -73,6 +73,35 @@ async function carregarDadosGlobaisUsuario() {
     }
 }
 carregarDadosGlobaisUsuario();
+
+
+/* * =====================================
+ * LÓGICA DO DROPDOWN DE PERFIL (A LÓGICA QUE FALTAVA)
+ * =====================================
+ */
+const profileDropdown = document.getElementById('profile-dropdown');
+if (profileDropdown) {
+    const dropdownContent = document.getElementById('profile-dropdown-list');
+    
+    // Mostra/Esconde o menu ao clicar no container principal
+    profileDropdown.addEventListener('click', (event) => {
+        // Impede que clicar em um link dentro do dropdown o feche
+        if (event.target.tagName === 'A' || event.target.closest('a')) return;
+        
+        // Alterna a exibição
+        const isShown = dropdownContent.style.display === 'block';
+        dropdownContent.style.display = isShown ? 'none' : 'block';
+        profileDropdown.classList.toggle('active', !isShown);
+    });
+
+    // Fecha se clicar fora
+    document.addEventListener('click', (event) => {
+        if (!profileDropdown.contains(event.target)) {
+            dropdownContent.style.display = 'none';
+            profileDropdown.classList.remove('active');
+        }
+    });
+}
 
 
 // --- LÓGICA DA PÁGINA DE LOGIN ---
@@ -107,7 +136,7 @@ if (logoutButton) {
 }
 
 /* * =====================================
- * TAREFA 18: LÓGICA DE REGISTRO DE ATIVIDADES
+ * LÓGICA DE REGISTRO DE ATIVIDADES
  * =====================================
  */
 async function logActivity(icon, color, title, description) {
@@ -235,7 +264,7 @@ if (modalOverlay) {
             }
         }
         
-        closeModal();
+        //closeModal(); // Removido daqui, pois já está dentro de cada if
     });
 }
 
@@ -940,7 +969,7 @@ if (formConfigMercado) {
     carregarConfiguracoes();
 }
 const profilePicInput = document.getElementById('profile-pic-input');
-const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); // Botão Remover
+const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); 
 
 if (profilePicInput) {
     profilePicInput.addEventListener('change', function(event) {
@@ -954,11 +983,10 @@ if (profilePicInput) {
         }
     });
 }
-// NOVO: Lógica do botão Remover
 if(profilePicRemoveBtn) {
     profilePicRemoveBtn.addEventListener('click', () => {
         document.getElementById('profile-pic-preview').src = PLACEHOLDER_IMG;
-        profilePicInput.value = null; // Limpa o seletor de arquivo
+        profilePicInput.value = null; 
     });
 }
 
@@ -968,13 +996,12 @@ if (formMeuPerfil) {
         event.preventDefault();
         
         const newSrc = document.getElementById('profile-pic-preview').src;
-        // Se a foto for o placeholder, salva 'null'
         const finalPic = newSrc.includes('placeholder.com') ? null : newSrc;
 
         const config = {
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value, 
-            profilePic: finalPic // Salva a foto (ou null)
+            profilePic: finalPic 
         };
         const configMercado = {
             nomeMercado: document.getElementById('nome-mercado').value,
@@ -991,7 +1018,6 @@ if (formMeuPerfil) {
             if (!response.ok) throw new Error('Falha ao salvar');
             
             alert('Perfil salvo com sucesso!');
-            // Atualiza o cache local da foto
             localStorage.setItem(CONFIG_KEY, JSON.stringify({ profilePic: finalPic }));
             carregarDadosGlobaisUsuario(); 
         } catch(e) {
@@ -1177,19 +1203,21 @@ if (globalSearchInput) {
  */
 const profileGrid = document.getElementById('profile-grid');
 if (profileGrid) {
+    // 1. Carrega os perfis da API
     async function carregarPerfis() {
         try {
             const response = await fetch(`${API_URL}/perfis`);
             const perfis = await response.json();
             
-            profileGrid.innerHTML = ''; 
+            profileGrid.innerHTML = ''; // Limpa a grade
             perfis.forEach(perfil => {
                 const card = document.createElement('div');
                 card.className = 'profile-card';
                 card.innerHTML = `
-                    <img src="${perfil.foto_perfil || PLACEHOLDER_IMG}" alt="${perfil.nome}" class="profile-card-pic">
+                    <img src="${perfil.foto_perfil || PLACEHOLDER_IMG}" alt="${perfil.nome}" class="profile-card-pic" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 15px;">
                     <span>${perfil.nome}</span>
                 `;
+                // 2. Adiciona o clique para SELECIONAR o perfil
                 card.addEventListener('click', () => {
                     localStorage.setItem('currentProfile', perfil.nome);
                     window.location.href = 'dashboard.html';
@@ -1208,7 +1236,7 @@ const formAddPerfil = document.getElementById('form-add-perfil');
 const profileList = document.getElementById('profile-list');
 
 async function carregarGerenciarPerfis() {
-    if (!profileList) return; 
+    if (!profileList) return; // Só roda se a lista existir
     try {
         const response = await fetch(`${API_URL}/perfis`);
         const perfis = await response.json();
@@ -1216,6 +1244,7 @@ async function carregarGerenciarPerfis() {
         profileList.innerHTML = '';
         perfis.forEach(perfil => {
             const li = document.createElement('li');
+            li.className = 'profile-item'; // Adiciona a classe para o estilo
             li.innerHTML = `
                 <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
                 <span>${perfil.nome}</span>
@@ -1238,8 +1267,10 @@ async function carregarGerenciarPerfis() {
         profileList.innerHTML = '<li><span>Erro ao carregar.</span></li>';
     }
 }
+// Carrega a lista de perfis na pág de config
 if(profileList) carregarGerenciarPerfis();
 
+// Lógica para ADICIONAR novo perfil
 if (formAddPerfil) {
     formAddPerfil.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -1311,7 +1342,7 @@ if (formEditPerfil) {
         }
     });
 
-    // --- NOVO: Lógica do botão Remover Foto ---
+    // 3. Lógica do botão Remover Foto
     const editRemoveBtn = document.getElementById('profile-pic-remove');
     if (editRemoveBtn) {
         editRemoveBtn.addEventListener('click', () => {
@@ -1321,7 +1352,7 @@ if (formEditPerfil) {
         });
     }
 
-    // 3. Lógica para salvar
+    // 4. Lógica para salvar
     formEditPerfil.addEventListener('submit', async (event) => {
         event.preventDefault();
         const nome = nomeInput.value;
