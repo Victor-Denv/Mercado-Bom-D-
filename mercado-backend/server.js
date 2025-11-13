@@ -6,7 +6,7 @@ const cors = require('cors');
 // --- 2. Configurar o App ---
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Aumenta o limite para aceitar fotos de perfil
+app.use(express.json({ limit: '10mb' })); 
 
 // --- 3. Configurar a Conexão com o Banco de Dados ---
 const dbConfig = {
@@ -32,38 +32,30 @@ app.get('/', (req, res) => {
 app.get('/dashboard-summary', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
-
         const [produtoRows] = await connection.execute('SELECT COUNT(*) as totalProdutos FROM produtos');
         const totalProdutos = produtoRows[0].totalProdutos;
-
         const dataObj = new Date();
         const dataHoje = dataObj.toLocaleDateString('pt-BR'); 
         const mesAtual = dataObj.getMonth() + 1;
         const anoAtual = dataObj.getFullYear();
-
         const [diaRows] = await connection.execute('SELECT total FROM fechamentos WHERE data_fechamento = ?', [dataHoje]);
         const vendasDoDia = (diaRows.length > 0) ? diaRows[0].total : 0;
-        
         const [mesRows] = await connection.execute(
             'SELECT SUM(total) as totalMes FROM fechamentos WHERE mes = ? AND ano = ?',
             [mesAtual, anoAtual]
         );
         const vendasDoMes = mesRows[0].totalMes || 0;
-
         const [estoqueRows] = await connection.execute(
             'SELECT COUNT(*) as totalEstoqueBaixo FROM produtos WHERE qtd <= estoque_minimo'
         );
         const totalEstoqueBaixo = estoqueRows[0].totalEstoqueBaixo;
-
         await connection.end();
-
         res.json({
             totalProdutos: totalProdutos,
             vendasDoDia: Number(vendasDoDia),
             vendasDoMes: Number(vendasDoMes),
             totalEstoqueBaixo: totalEstoqueBaixo
         });
-
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -74,7 +66,6 @@ app.get('/dashboard-summary', async (req, res) => {
  * ROTAS DE PRODUTOS
  * =====================================
  */
-
 app.get('/produtos', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
@@ -85,7 +76,6 @@ app.get('/produtos', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.post('/produtos', async (req, res) => {
     try {
         const { nome, sku, categoria, custo, venda, qtd, vencimento, estoqueMinimo } = req.body;
@@ -101,7 +91,6 @@ app.post('/produtos', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.put('/produtos/:sku', async (req, res) => {
     try {
         const { sku } = req.params;
@@ -119,7 +108,6 @@ app.put('/produtos/:sku', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.delete('/produtos/:sku', async (req, res) => {
     try {
         const { sku } = req.params;
@@ -150,15 +138,12 @@ app.post('/estoque/entrada', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.post('/estoque/saida', async (req, res) => {
     try {
         const { sku, quantidade, motivo, nomeProduto, custoTotal } = req.body;
         const connection = await mysql.createConnection(dbConfig);
-        
         const updateSql = 'UPDATE produtos SET qtd = qtd - ? WHERE sku = ?';
         await connection.execute(updateSql, [quantidade, sku]);
-        
         const insertSql = `
             INSERT INTO perdas (data_perda, produto_sku, nome_produto, qtd, motivo, custo_total)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -173,7 +158,7 @@ app.post('/estoque/saida', async (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE CATEGORIAS (NOVO)
+ * ROTAS DE CATEGORIAS
  * =====================================
  */
 app.get('/categorias', async (req, res) => {
@@ -186,7 +171,6 @@ app.get('/categorias', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.post('/categorias', async (req, res) => {
     try {
         const { nome } = req.body;
@@ -198,12 +182,10 @@ app.post('/categorias', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.delete('/categorias/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const connection = await mysql.createConnection(dbConfig);
-        // (No futuro, você deve verificar se algum produto usa esta categoria antes de deletar)
         await connection.execute('DELETE FROM categorias WHERE id = ?', [id]);
         await connection.end();
         res.json({ message: 'Categoria deletada com sucesso!' });
@@ -213,7 +195,7 @@ app.delete('/categorias/:id', async (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE FECHAMENTO DE CAIXA (NOVO)
+ * ROTAS DE FECHAMENTO DE CAIXA
  * =====================================
  */
 app.get('/fechamentos', async (req, res) => {
@@ -226,18 +208,14 @@ app.get('/fechamentos', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.post('/fechamentos', async (req, res) => {
     try {
         const { dinheiro, cartao, pix, total, data, mes, ano } = req.body;
         const connection = await mysql.createConnection(dbConfig);
-        
-        // Verifica se já existe
         const [diaRows] = await connection.execute('SELECT * FROM fechamentos WHERE data_fechamento = ?', [data]);
         if (diaRows.length > 0) {
-            return res.status(409).json({ error: 'O caixa já foi fechado hoje!' }); // 409 = Conflito
+            return res.status(409).json({ error: 'O caixa já foi fechado hoje!' }); 
         }
-        
         const sql = `
             INSERT INTO fechamentos (data_fechamento, dinheiro, cartao, pix, total, mes, ano)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -251,7 +229,7 @@ app.post('/fechamentos', async (req, res) => {
 });
 
 /* * =====================================
- * ROTAS DE RELATÓRIOS (NOVO)
+ * ROTAS DE RELATÓRIOS
  * =====================================
  */
 app.get('/relatorios/estoque-baixo', async (req, res) => {
@@ -264,7 +242,6 @@ app.get('/relatorios/estoque-baixo', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.get('/relatorios/inventario', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
@@ -275,7 +252,6 @@ app.get('/relatorios/inventario', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 app.get('/relatorios/perdas', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
@@ -286,21 +262,100 @@ app.get('/relatorios/perdas', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 /* * =====================================
- * ROTAS DE ATIVIDADES (NOVO)
+ * ROTAS DE CONFIGURAÇÕES
  * =====================================
  */
-// ROTA PARA CRIAR UMA NOVA ATIVIDADE (POST)
+app.get('/configuracoes', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [userRows] = await connection.execute('SELECT email, nome, foto_perfil FROM usuarios WHERE email = ?', ['admin@mercadobomd.com']); 
+        const [configRows] = await connection.execute('SELECT * FROM configuracoes WHERE id = 1');
+        await connection.end();
+        res.json({
+            admin: userRows[0],
+            mercado: configRows[0]
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+app.put('/configuracoes', async (req, res) => {
+    try {
+        const { nomeAdmin, emailAdmin, profilePic, nomeMercado, cnpj, estoqueMinimoPadrao } = req.body;
+        const connection = await mysql.createConnection(dbConfig);
+        await connection.execute('UPDATE usuarios SET nome = ?, foto_perfil = ? WHERE email = ?', [nomeAdmin, profilePic, emailAdmin]);
+        const configSql = `
+            INSERT INTO configuracoes (id, nome_mercado, cnpj, estoque_minimo_padrao)
+            VALUES (1, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+            nome_mercado = ?, cnpj = ?, estoque_minimo_padrao = ?
+        `;
+        await connection.execute(configSql, [nomeMercado, cnpj, estoqueMinimoPadrao, nomeMercado, cnpj, estoqueMinimoPadrao]);
+        await connection.end();
+        res.json({ message: 'Configurações salvas com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/* * =====================================
+ * ROTAS DE PERFIS (NOVO)
+ * =====================================
+ */
+app.get('/perfis', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.execute('SELECT * FROM perfis');
+        await connection.end();
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/perfis', async (req, res) => {
+    try {
+        const { nome } = req.body;
+        const connection = await mysql.createConnection(dbConfig);
+        await connection.execute('INSERT INTO perfis (nome, cargo) VALUES (?, ?)', [nome, 'funcionario']);
+        await connection.end();
+        res.status(201).json({ message: 'Perfil criado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/perfis/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        // (Você pode adicionar uma regra aqui para não deixar excluir o perfil 'Admin' no futuro)
+        const connection = await mysql.createConnection(dbConfig);
+        await connection.execute('DELETE FROM perfis WHERE id = ?', [id]);
+        await connection.end();
+        res.json({ message: 'Perfil deletado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/* * =====================================
+ * ROTAS DE ATIVIDADES (ATUALIZADO)
+ * =====================================
+ */
 app.post('/atividades', async (req, res) => {
     try {
-        const { icon, color, title, description, time } = req.body;
+        // AGORA PEGAMOS O 'perfil_nome'
+        const { icon, color, title, description, time, perfil_nome } = req.body; 
         
         const connection = await mysql.createConnection(dbConfig);
         const sql = `
-            INSERT INTO atividades (icon, color, title, description, time_string)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO atividades (icon, color, title, description, time_string, perfil_nome)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        await connection.execute(sql, [icon, color, title, description, time]);
+        // E SALVAMOS ELE AQUI
+        await connection.execute(sql, [icon, color, title, description, time, perfil_nome]);
         await connection.end();
         
         res.status(201).json({ message: 'Atividade registrada!' });
@@ -308,11 +363,10 @@ app.post('/atividades', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-// ROTA PARA LER AS ÚLTIMAS ATIVIDADES (GET)
+
 app.get('/atividades', async (req, res) => {
     try {
         const connection = await mysql.createConnection(dbConfig);
-        // Pega as últimas 10, da mais nova para a mais antiga
         const [rows] = await connection.execute(
             'SELECT * FROM atividades ORDER BY created_at DESC LIMIT 10'
         );
@@ -322,52 +376,6 @@ app.get('/atividades', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-/* * =====================================
- * ROTAS DE CONFIGURAÇÕES (NOVO)
- * =====================================
- */
-app.get('/configuracoes', async (req, res) => {
-    try {
-        const connection = await mysql.createConnection(dbConfig);
-        // Pega as configs do admin (usuário) e do mercado
-        const [userRows] = await connection.execute('SELECT email, nome, foto_perfil FROM usuarios WHERE email = ?', ['admin@mercadobomd.com']); // (Email "chumbado" por enquanto)
-        const [configRows] = await connection.execute('SELECT * FROM configuracoes WHERE id = 1');
-        await connection.end();
-        
-        res.json({
-            admin: userRows[0],
-            mercado: configRows[0]
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.put('/configuracoes', async (req, res) => {
-    try {
-        const { nomeAdmin, emailAdmin, profilePic, nomeMercado, cnpj, estoqueMinimoPadrao } = req.body;
-        const connection = await mysql.createConnection(dbConfig);
-        
-        // Salva perfil do admin
-        await connection.execute('UPDATE usuarios SET nome = ?, foto_perfil = ? WHERE email = ?', [nomeAdmin, profilePic, emailAdmin]);
-        
-        // Salva configs do mercado (usamos INSERT... ON DUPLICATE KEY UPDATE para criar a linha 1 se ela não existir)
-        const configSql = `
-            INSERT INTO configuracoes (id, nome_mercado, cnpj, estoque_minimo_padrao)
-            VALUES (1, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-            nome_mercado = ?, cnpj = ?, estoque_minimo_padrao = ?
-        `;
-        await connection.execute(configSql, [nomeMercado, cnpj, estoqueMinimoPadrao, nomeMercado, cnpj, estoqueMinimoPadrao]);
-        
-        await connection.end();
-        res.json({ message: 'Configurações salvas com sucesso!' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 
 
 /* =========================================

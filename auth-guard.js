@@ -1,12 +1,32 @@
 /* === auth-guard.js === */
-/* (Trocado para localStorage) */
+/* (ATUALIZADO: Agora checa o Login E o Perfil) */
 
-// 1. Pegamos o "crachá" do localStorage
-const isAuthenticated = localStorage.getItem('userToken'); // MUDANÇA AQUI
+// Pega o nome do arquivo da página atual
+const currentPage = window.location.pathname.split('/').pop();
 
-// 2. Verificamos se o crachá NÃO existe
+// 1. Pega o "crachá" da CONTA
+const isAuthenticated = localStorage.getItem('userToken');
+
+// 2. Pega o "crachá" do PERFIL
+const currentProfile = localStorage.getItem('currentProfile');
+
 if (!isAuthenticated) {
-    // 3. Se não existe, o usuário é expulso para a tela de login
-    alert('Você precisa estar logado para acessar esta página.');
-    window.location.href = 'index.html';
+    // REGRA 1: Se não tem login (token), EXPULSA para o login.
+    // (A única exceção é a própria página de login)
+    if (currentPage !== 'login.html') {
+        alert('Você precisa estar logado para acessar esta página.');
+        window.location.href = 'login.html';
+    }
+} else {
+    // REGRA 2: Se ESTÁ logado, mas não selecionou um PERFIL...
+    if (!currentProfile && currentPage !== 'perfis.html') {
+        // ...EXPULSA para a seleção de perfis.
+        window.location.href = 'perfis.html';
+    }
+
+    // REGRA 3: Se ESTÁ logado E tem um perfil, mas tenta ver o login...
+    if (currentPage === 'login.html') {
+        // ...MANDA para o dashboard.
+        window.location.href = 'dashboard.html';
+    }
 }

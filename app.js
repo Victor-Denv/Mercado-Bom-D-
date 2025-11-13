@@ -5,10 +5,10 @@
 const API_URL = 'http://localhost:3000';
 
 // Define o nome da chave de Configurações
-const CONFIG_KEY = 'marketConfig';
+const CONFIG_KEY = 'marketConfig'; 
 
 /* * =====================================
- * TAREFA 15.1: CARREGAR FOTO NO HEADER
+ * FUNÇÃO DE CARREGAR FOTO NO HEADER
  * =====================================
  */
 function carregarDadosGlobaisUsuario() {
@@ -32,9 +32,11 @@ if (loginForm) {
 
         // (No futuro, vamos trocar isso para chamar a API de login)
         if (email === 'admin' && senha === '123') {
-            alert('Login bem-sucedido! Bem-vindo.');
+            alert('Login bem-sucedido! Selecione seu perfil.');
             localStorage.setItem('userToken', 'admin-logado-12345'); 
-            window.location.href = 'dashboard.html';
+            
+            // --- MUDANÇA: Redireciona para PERFIS ---
+            window.location.href = 'perfis.html';
         } else {
             alert('Usuário ou senha incorretos! Tente "admin" e "123".');
         }
@@ -48,6 +50,7 @@ if (logoutButton) {
         event.preventDefault(); 
         if (confirm('Você tem certeza que deseja sair?')) {
             localStorage.removeItem('userToken'); // Limpa o token de login
+            localStorage.removeItem('currentProfile'); // Limpa o perfil
             localStorage.removeItem(CONFIG_KEY); // Limpa a foto de perfil salva
             window.location.href = 'login.html';
         }
@@ -55,23 +58,26 @@ if (logoutButton) {
 }
 
 /* * =====================================
- * TAREFA 13.1: LÓGICA DE REGISTRO DE ATIVIDADES (ATUALIZADO)
+ * TAREFA 18: LÓGICA DE REGISTRO DE ATIVIDADES (ATUALIZADO)
  * =====================================
  */
-// Agora esta função chama a API
 async function logActivity(icon, color, title, description) {
     try {
+        // 1. Pega o perfil que está logado
+        const perfil = localStorage.getItem('currentProfile') || 'Sistema'; 
+        
         const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const newActivity = { icon, color, title, description, time };
+
+        // 2. Adiciona o nome do perfil no "malote"
+        const newActivity = { icon, color, title, description, time, perfil_nome: perfil }; 
 
         await fetch(`${API_URL}/atividades`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newActivity)
+            body: JSON.stringify(newActivity) // 3. Envia para o back-end
         });
     } catch (error) {
         console.error('Falha ao registrar atividade:', error.message);
-        // (Não paramos o usuário por isso, apenas registramos o erro no console)
     }
 }
 
@@ -108,7 +114,6 @@ if (modalOverlay) {
 
         if (skuParaDeletar) {
             try {
-                // Precisamos pegar o nome ANTES de deletar, para o log
                 const prodResponse = await fetch(`${API_URL}/produtos`);
                 const produtos = await prodResponse.json();
                 const produtoDeletado = produtos.find(p => p.sku === skuParaDeletar);
@@ -131,7 +136,6 @@ if (modalOverlay) {
         } 
         else if (idParaDeletar) {
             try {
-                // (Precisamos pegar o nome da categoria antes de deletar)
                 const catResponse = await fetch(`${API_URL}/categorias`);
                 const categorias = await catResponse.json();
                 const categoriaDeletada = categorias.find(c => c.id == idParaDeletar);
@@ -199,7 +203,7 @@ if (formAddProduct) {
  * =====================================
  */
 const productTableBody = document.getElementById('product-table-body');
-let cacheProdutos = []; // Cache de produtos para os filtros
+let cacheProdutos = []; 
 
 function renderProductTable(produtosParaRenderizar) {
     const tabela = document.getElementById('product-table-body');
@@ -246,7 +250,7 @@ if (productTableBody) {
     async function carregarProdutos() {
         try {
             const response = await fetch(`${API_URL}/produtos`);
-            cacheProdutos = await response.json(); // Salva no cache
+            cacheProdutos = await response.json(); 
             renderProductTable(cacheProdutos);
         } catch (error) {
             productTableBody.innerHTML = `<tr><td colspan="6">Erro ao carregar produtos: ${error.message}</td></tr>`;
@@ -270,7 +274,6 @@ if (formAddCategory) {
             alert('Por favor, digite o nome da categoria.');
             return;
         }
-        
         try {
             const response = await fetch(`${API_URL}/categorias`, {
                 method: 'POST',
@@ -433,12 +436,13 @@ if (statsGrid) {
                     activities.forEach(act => {
                         const li = document.createElement('li');
                         li.className = 'feed-item';
+                        // ATUALIZADO: Mostra o nome do perfil
                         li.innerHTML = `
                             <div class="activity-icon ${act.color}">
                                 <i class="${act.icon}"></i>
                             </div>
                             <div class="activity-details">
-                                <strong>${act.title}</strong>
+                                <strong>${act.perfil_nome}</strong>
                                 <span>${act.description}</span>
                             </div>
                             <span class="activity-time">${act.time_string}</span>
@@ -710,9 +714,8 @@ if (formSaida) {
             return;
         }
 
-        // Pega o produto do cache do autocomplete
-        let cacheProdutos = JSON.parse(localStorage.getItem('listaDeProdutos')) || []; // (Reutiliza o cache da pág. de produtos)
-        const produto = cacheProdutos.find(p => p.sku === skuParaAtualizar);
+        const produtos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
+        const produto = produtos.find(p => p.sku === skuParaAtualizar);
 
         if (!produto) {
              alert('Erro: Produto selecionado não foi encontrado.');
@@ -857,7 +860,6 @@ if (formConfigMercado) {
     }
     carregarConfiguracoes();
 }
-
 const profilePicInput = document.getElementById('profile-pic-input');
 if (profilePicInput) {
     profilePicInput.addEventListener('change', function(event) {
@@ -878,11 +880,9 @@ if (formMeuPerfil) {
         
         const config = {
             nomeAdmin: document.getElementById('nome-completo').value,
-            emailAdmin: document.getElementById('email').value, // (Email é a chave, não deve ser editado assim, mas ok por agora)
+            emailAdmin: document.getElementById('email').value, 
             profilePic: document.getElementById('profile-pic-preview').src
         };
-        
-        // Esta rota é combinada, então pegamos os outros dados também
         const configMercado = {
             nomeMercado: document.getElementById('nome-mercado').value,
             cnpj: document.getElementById('cnpj').value,
@@ -898,7 +898,7 @@ if (formMeuPerfil) {
             if (!response.ok) throw new Error('Falha ao salvar');
             
             alert('Perfil salvo com sucesso!');
-            carregarDadosGlobaisUsuario(); // Atualiza a foto no header
+            carregarDadosGlobaisUsuario(); 
         } catch(e) {
             alert('Erro ao salvar perfil.');
         }
@@ -913,8 +913,6 @@ if (formConfigMercado) {
             cnpj: document.getElementById('cnpj').value,
             estoqueMinimoPadrao: document.getElementById('estoque-minimo').value
         };
-        
-        // Esta rota é combinada, então pegamos os outros dados também
         const configPerfil = {
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value,
@@ -939,7 +937,6 @@ const formAlterarSenha = document.getElementById('form-alterar-senha');
 if (formAlterarSenha) {
     formAlterarSenha.addEventListener('submit', function(event) {
         event.preventDefault();
-        // (Lógica de senha real precisa de API)
         alert('Senha alterada com sucesso! (Simulação)');
         document.getElementById('senha-atual').value = '';
         document.getElementById('nova-senha').value = '';
@@ -967,17 +964,15 @@ if (btnLimparSistema) {
 const filtroBuscaInput = document.getElementById('filtro-busca');
 const filtroCategoriaSelect = document.getElementById('filtro-categoria');
 
-// Função principal que aplica os filtros
 async function aplicarFiltrosDeProduto() {
     if (!productTableBody) return; 
 
-    let todosProdutos = cacheProdutos; // Usa o cache
-    // Se o cache estiver vazio, busca na API
+    let todosProdutos = cacheProdutos;
     if (todosProdutos.length === 0) {
         try {
             const response = await fetch(`${API_URL}/produtos`);
             todosProdutos = await response.json();
-            cacheProdutos = todosProdutos; // Salva no cache
+            cacheProdutos = todosProdutos;
         } catch(e) {
             console.error('Falha ao buscar produtos para filtro');
         }
@@ -997,7 +992,6 @@ async function aplicarFiltrosDeProduto() {
 }
 
 if (filtroBuscaInput) {
-    // 1. Preenche o dropdown de categorias (agora pela API)
     async function carregarFiltroCategorias() {
         try {
             const response = await fetch(`${API_URL}/categorias`);
@@ -1013,7 +1007,6 @@ if (filtroBuscaInput) {
     }
     carregarFiltroCategorias();
 
-    // 2. Adiciona os "escutadores" para filtrar em tempo real
     filtroBuscaInput.addEventListener('keyup', aplicarFiltrosDeProduto);
     filtroCategoriaSelect.addEventListener('change', aplicarFiltrosDeProduto);
 }
@@ -1023,7 +1016,6 @@ if (filtroBuscaInput) {
  * TAREFA 17: LÓGICA DA PESQUISA GLOBAL
  * =====================================
  */
-
 const paginasDoSite = [
     { nome: 'Dashboard', href: 'dashboard.html', icone: 'fas fa-home' },
     { nome: 'Produtos', href: 'produtos.html', icone: 'fas fa-box' },
@@ -1077,6 +1069,107 @@ if (globalSearchInput) {
     document.addEventListener('click', function(event) {
         if (!event.target.closest('.search-bar')) {
             globalSearchResults.style.display = 'none';
+        }
+    });
+}
+
+
+/* * =====================================
+ * TAREFA 18: LÓGICA DE PERFIS (NOVO)
+ * =====================================
+ */
+const profileGrid = document.getElementById('profile-grid');
+if (profileGrid) {
+    // 1. Carrega os perfis da API
+    async function carregarPerfis() {
+        try {
+            const response = await fetch(`${API_URL}/perfis`);
+            const perfis = await response.json();
+            
+            profileGrid.innerHTML = ''; // Limpa a grade
+            perfis.forEach(perfil => {
+                const card = document.createElement('div');
+                card.className = 'profile-card';
+                card.innerHTML = `
+                    <i class="fas fa-user-circle"></i>
+                    <span>${perfil.nome}</span>
+                `;
+                // 2. Adiciona o clique para SELECIONAR o perfil
+                card.addEventListener('click', () => {
+                    localStorage.setItem('currentProfile', perfil.nome);
+                    window.location.href = 'dashboard.html';
+                });
+                profileGrid.appendChild(card);
+            });
+        } catch (e) {
+            profileGrid.innerHTML = '<p>Erro ao carregar perfis.</p>';
+        }
+    }
+    carregarPerfis();
+}
+
+// Lógica de "Gerenciar Perfis" na página de Configurações
+const formAddPerfil = document.getElementById('form-add-perfil');
+const profileList = document.getElementById('profile-list');
+
+async function carregarGerenciarPerfis() {
+    if (!profileList) return; // Só roda se a lista existir
+    try {
+        const response = await fetch(`${API_URL}/perfis`);
+        const perfis = await response.json();
+        
+        profileList.innerHTML = '';
+        perfis.forEach(perfil => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span>${perfil.nome}</span>
+                <button class="btn-action delete" data-id="${perfil.id}"><i class="fas fa-trash-alt"></i></button>
+            `;
+            profileList.appendChild(li);
+
+            // Ativa o botão de deletar
+            li.querySelector('.btn-action.delete').addEventListener('click', async () => {
+                if (perfil.nome === 'Admin') { // Regra de segurança
+                    alert('Não é possível excluir o perfil "Admin" principal.');
+                    return;
+                }
+                if (confirm(`Tem certeza que quer excluir o perfil "${perfil.nome}"?`)) {
+                    try {
+                        await fetch(`${API_URL}/perfis/${perfil.id}`, { method: 'DELETE' });
+                        alert('Perfil excluído!');
+                        carregarGerenciarPerfis(); // Recarrega a lista
+                    } catch (e) {
+                        alert('Erro ao excluir perfil.');
+                    }
+                }
+            });
+        });
+    } catch (e) {
+        profileList.innerHTML = '<li><span>Erro ao carregar.</span></li>';
+    }
+}
+// Carrega a lista de perfis na pág de config
+if(profileList) carregarGerenciarPerfis();
+
+// Lógica para ADICIONAR novo perfil
+if (formAddPerfil) {
+    formAddPerfil.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const input = document.getElementById('nome-perfil');
+        const nome = input.value;
+        
+        if (!nome) return;
+
+        try {
+            await fetch(`${API_URL}/perfis`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome: nome })
+            });
+            input.value = ''; // Limpa o campo
+            carregarGerenciarPerfis(); // Recarrega a lista
+        } catch (e) {
+            alert('Erro ao adicionar perfil.');
         }
     });
 }

@@ -1156,3 +1156,100 @@ tbody td {
     cursor: pointer;
     display: inline-block;
 }
+
+/* * =====================================
+ * ADIÇÃO: ESTILOS DA TELA DE SELEÇÃO DE PERFIL
+ * =====================================
+ */
+
+.profile-select-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+}
+
+.profile-container {
+    text-align: center;
+    max-width: 800px;
+    margin: auto;
+}
+
+.profile-container h1 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 40px;
+}
+
+.profile-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 50px;
+}
+
+.profile-card {
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    color: var(--text-gray);
+    transition: transform 0.3s ease;
+}
+
+.profile-card:hover {
+    transform: scale(1.05);
+    color: var(--text-dark);
+}
+
+.profile-card i {
+    font-size: 100px; /* Ícone gigante */
+    color: var(--primary-green);
+    background-color: var(--white);
+    padding: 20px;
+    border-radius: 50%;
+    border: 3px solid var(--border-light);
+    margin-bottom: 15px;
+    display: block;
+    width: 140px;
+    height: 140px;
+    line-height: 100px; /* Centraliza o ícone */
+}
+
+.profile-card span {
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+.manage-profiles-btn {
+    padding: 12px 30px;
+    font-size: 1rem;
+}
+
+/* * =====================================
+ * ADIÇÃO: ESTILOS DO "GERENCIAR PERFIS"
+ * =====================================
+ */
+.profile-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.profile-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background-color: var(--bg-light);
+    border-radius: 8px;
+    border: 1px solid var(--border-light);
+}
+
+.profile-list li span {
+    font-weight: 500;
+    color: var(--text-dark);
+}

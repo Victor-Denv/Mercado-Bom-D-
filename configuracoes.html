@@ -98,6 +98,24 @@
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Alterar Senha</button>
                         </div>
+                       <div class="card">
+                    <h3 class="card-title">Gerenciar Perfis</h3>
+                    
+                    <form id="form-add-perfil" class="form-layout" style="margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label for="nome-perfil">Nome do Novo Perfil</label>
+                            <input type="text" id="nome-perfil" placeholder="Ex: Estoquista" required>
+                        </div>
+                        <div class="form-actions" style="border-top: none; padding-top: 0;">
+                            <button type="submit" class="btn-primary">Adicionar Perfil</button>
+                        </div>
+                    </form>
+
+                    <h4 style="margin-bottom: 10px; color: var(--text-dark);">Perfis Atuais:</h4>
+                    <ul class="profile-list" id="profile-list">
+                        <li><span>Carregando...</span></li>
+                    </ul>
+                </div> 
                     </form>
                 </div>
             </div>
