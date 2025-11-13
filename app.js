@@ -8,7 +8,7 @@ const API_URL = 'http://localhost:3000';
 const CONFIG_KEY = 'marketConfig'; 
 
 /* * =====================================
- * FUNÇÃO DE CARREGAR FOTO NO HEADER
+ * TAREFA 15.1: CARREGAR FOTO NO HEADER
  * =====================================
  */
 function carregarDadosGlobaisUsuario() {
@@ -1073,9 +1073,8 @@ if (globalSearchInput) {
     });
 }
 
-
 /* * =====================================
- * TAREFA 18: LÓGICA DE PERFIS (NOVO)
+ * TAREFA 18: LÓGICA DE PERFIS
  * =====================================
  */
 const profileGrid = document.getElementById('profile-grid');
