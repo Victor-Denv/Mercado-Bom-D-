@@ -1,6 +1,5 @@
 /* === app.js === */
-/* (ATENÇÃO: Este arquivo é do FRONT-END) */
-/* (Agora ele usa fetch() para chamar o Back-end em http://localhost:3000) */
+/* (Este é o "Cérebro" com a lógica do app) */
 
 // Define o "endereço" do seu back-end
 const API_URL = 'http://localhost:3000';
@@ -258,15 +257,56 @@ if (productTableBody) {
 // (Lógica de categorias ainda usa localStorage)
 const formAddCategory = document.getElementById('form-add-categoria');
 if (formAddCategory) {
-    // ... (código de salvar categoria) ...
+    formAddCategory.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const categoryNameInput = document.getElementById('nome-categoria');
+        const categoryName = categoryNameInput.value;
+        if (!categoryName) {
+            alert('Por favor, digite o nome da categoria.');
+            return;
+        }
+        let categorias = JSON.parse(localStorage.getItem('listaDeCategorias')) || [];
+        categorias.push(categoryName);
+        localStorage.setItem('listaDeCategorias', JSON.stringify(categorias));
+        logActivity('fas fa-tags', 'gray', 'Nova Categoria Adicionada', `A categoria "${categoryName}" foi criada.`);
+        alert('Categoria "' + categoryName + '" salva com sucesso!');
+        categoryNameInput.value = '';
+        window.location.reload(); 
+    });
 }
 const categoryList = document.querySelector('.category-list');
 if (categoryList) {
-    // ... (código de listar categoria) ...
+    const categorias = JSON.parse(localStorage.getItem('listaDeCategorias')) || [];
+    categoryList.innerHTML = ''; 
+    if (categorias.length > 0) {
+        categorias.forEach(categoria => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span>${categoria}</span>
+                <button class="btn-action delete" data-name="${categoria}"><i class="fas fa-trash-alt"></i></button>
+            `;
+            categoryList.appendChild(li);
+            const deleteButton = li.querySelector('.btn-action.delete');
+            deleteButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                const name = event.target.closest('.btn-action.delete').getAttribute('data-name');
+                modalOverlay.dataset.name = name; 
+                openModal();
+            });
+        });
+    } else {
+        categoryList.innerHTML = '<li><span>Nenhuma categoria cadastrada.</span></li>';
+    }
 }
 const categorySelect = document.getElementById('categoria-produto');
 if (categorySelect) {
-    // ... (código de preencher dropdown de categoria) ...
+    const categorias = JSON.parse(localStorage.getItem('listaDeCategorias')) || [];
+    categorias.forEach(categoria => {
+        const option = document.createElement('option');
+        option.value = categoria; 
+        option.textContent = categoria; 
+        categorySelect.appendChild(option);
+    });
 }
 
 
@@ -278,10 +318,43 @@ if (categorySelect) {
 const formFechamento = document.getElementById('form-fechamento');
 const dataField = document.getElementById('data-fechamento');
 if (dataField) {
-    // ... (código de preencher data) ...
+    const hoje = new Date();
+    dataField.value = hoje.toLocaleDateString('pt-BR'); 
 }
 if (formFechamento) {
-    // ... (código de salvar fechamento) ...
+    formFechamento.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const dinheiro = parseFloat(document.getElementById('total-dinheiro').value) || 0;
+        const cartao = parseFloat(document.getElementById('total-cartao').value) || 0;
+        const pix = parseFloat(document.getElementById('total-pix').value) || 0;
+        const totalVendaDia = dinheiro + cartao + pix;
+        const data = dataField.value;
+        const dataObj = new Date();
+        const mesAtual = dataObj.getMonth();
+        const anoAtual = dataObj.getFullYear();
+        let fechamentos = JSON.parse(localStorage.getItem('listaDeFechamentos')) || [];
+        
+        const jaFechouHoje = fechamentos.some(f => f.data === data);
+        if (jaFechouHoje) {
+            alert('Erro: O caixa já foi fechado hoje! Só é permitido um fechamento por dia.');
+            return;
+        }
+        const novoFechamento = { data, dinheiro: dinheiro.toFixed(2), cartao: cartao.toFixed(2), pix: pix.toFixed(2), total: totalVendaDia.toFixed(2) };
+        fechamentos.push(novoFechamento);
+        localStorage.setItem('listaDeFechamentos', JSON.stringify(fechamentos));
+        
+        let relatorioMensal = JSON.parse(localStorage.getItem('relatorioMensal')) || { mes: -1, ano: -1, total: 0 };
+        if (relatorioMensal.mes !== mesAtual || relatorioMensal.ano !== anoAtual) {
+            relatorioMensal.total = 0;
+            relatorioMensal.mes = mesAtual;
+            relatorioMensal.ano = anoAtual;
+        }
+        relatorioMensal.total += totalVendaDia;
+        localStorage.setItem('relatorioMensal', JSON.stringify(relatorioMensal));
+        logActivity('fas fa-wallet', 'yellow', 'Fechamento de Caixa', `Caixa fechado com R$ ${totalVendaDia.toFixed(2)}.`);
+        alert('Fechamento do dia salvo com sucesso! Total: R$ ' + totalVendaDia.toFixed(2));
+        window.location.href = 'dashboard.html';
+    });
 }
 
 /* * =====================================
@@ -358,18 +431,22 @@ if (statsGrid) {
 // (Estas lógicas continuam lendo do localStorage por enquanto)
 const salesReportBody = document.getElementById('sales-report-body');
 if (salesReportBody) {
+    const fechamentos = JSON.parse(localStorage.getItem('listaDeFechamentos')) || [];
     // ... (código do relatório de vendas) ...
 }
 const stockLowReportBody = document.getElementById('stock-low-report-body');
 if (stockLowReportBody) {
+    const produtos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
     // ... (código do relatório de estoque baixo) ...
 }
 const inventoryReportBody = document.getElementById('inventory-report-body');
 if (inventoryReportBody) {
+    const produtos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
     // ... (código do relatório de inventário) ...
 }
 const lossesReportBody = document.getElementById('losses-report-body');
 if (lossesReportBody) {
+    const perdas = JSON.parse(localStorage.getItem('listaDePerdas')) || [];
     // ... (código do relatório de perdas) ...
 }
 

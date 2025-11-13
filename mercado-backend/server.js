@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 });
 
 /* * =====================================
- * ROTA PARA O DASHBOARD (NOVO)
+ * ROTA PARA O DASHBOARD (A QUE FALTAVA)
  * =====================================
  */
 app.get('/dashboard-summary', async (req, res) => {
@@ -65,8 +65,8 @@ app.get('/dashboard-summary', async (req, res) => {
         // 4. Envia todos os dados de uma vez
         res.json({
             totalProdutos: totalProdutos,
-            vendasDoDia: vendasDoDia,
-            vendasDoMes: vendasDoMes,
+            vendasDoDia: Number(vendasDoDia), // Garante que é número
+            vendasDoMes: Number(vendasDoMes), // Garante que é número
             totalEstoqueBaixo: totalEstoqueBaixo
         });
 
