@@ -714,7 +714,7 @@ if (formSaida) {
             return;
         }
 
-        const produtos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
+        const produtos = cacheProdutos; // Usa o cache de produtos
         const produto = produtos.find(p => p.sku === skuParaAtualizar);
 
         if (!produto) {
@@ -1074,7 +1074,7 @@ if (globalSearchInput) {
 }
 
 /* * =====================================
- * TAREFA 18: LÓGICA DE PERFIS
+ * TAREFA 18: LÓGICA DE PERFIS (A QUE FALTAVA)
  * =====================================
  */
 const profileGrid = document.getElementById('profile-grid');
@@ -1128,8 +1128,9 @@ async function carregarGerenciarPerfis() {
 
             // Ativa o botão de deletar
             li.querySelector('.btn-action.delete').addEventListener('click', async () => {
-                if (perfil.nome === 'Admin') { // Regra de segurança
-                    alert('Não é possível excluir o perfil "Admin" principal.');
+                // (Regra de segurança simples)
+                if (perfil.nome === 'Admin' || perfil.nome === 'Vitor') { 
+                    alert('Não é possível excluir o perfil principal.');
                     return;
                 }
                 if (confirm(`Tem certeza que quer excluir o perfil "${perfil.nome}"?`)) {
