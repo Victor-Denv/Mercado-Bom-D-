@@ -5,10 +5,10 @@
 const API_URL = 'http://localhost:3000';
 
 // Define o nome da chave de Configurações
-const CONFIG_KEY = 'marketConfig'; // (Este é o único localStorage que sobrou, para a foto)
+const CONFIG_KEY = 'marketConfig';
 
 /* * =====================================
- * FUNÇÃO DE CARREGAR FOTO NO HEADER
+ * TAREFA 15.1: CARREGAR FOTO NO HEADER
  * =====================================
  */
 function carregarDadosGlobaisUsuario() {
@@ -55,11 +55,25 @@ if (logoutButton) {
 }
 
 /* * =====================================
- * LÓGICA DE REGISTRO DE ATIVIDADES
+ * TAREFA 13.1: LÓGICA DE REGISTRO DE ATIVIDADES (ATUALIZADO)
  * =====================================
  */
-// (Esta lógica foi removida, pois o Extrato de Atividades
-//  ainda não foi migrado para o back-end)
+// Agora esta função chama a API
+async function logActivity(icon, color, title, description) {
+    try {
+        const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const newActivity = { icon, color, title, description, time };
+
+        await fetch(`${API_URL}/atividades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newActivity)
+        });
+    } catch (error) {
+        console.error('Falha ao registrar atividade:', error.message);
+        // (Não paramos o usuário por isso, apenas registramos o erro no console)
+    }
+}
 
 
 /* * =====================================
@@ -80,7 +94,7 @@ function closeModal() {
     if (modalOverlay) {
         modalOverlay.style.display = 'none';
         modalOverlay.removeAttribute('data-sku');
-        modalOverlay.removeAttribute('data-id'); // Mudamos de 'name' para 'id'
+        modalOverlay.removeAttribute('data-id'); 
     }
 }
 
@@ -88,19 +102,26 @@ if (modalOverlay) {
     modalBtnCancel.addEventListener('click', closeModal);
     modalCloseIcon.addEventListener('click', closeModal);
 
-    // AGORA O "SIM, EXCLUIR" CHAMA A API
     modalBtnConfirm.addEventListener('click', async () => {
         const skuParaDeletar = modalOverlay.dataset.sku;
-        const idParaDeletar = modalOverlay.dataset.id; // Para categorias
+        const idParaDeletar = modalOverlay.dataset.id; 
 
         if (skuParaDeletar) {
             try {
+                // Precisamos pegar o nome ANTES de deletar, para o log
+                const prodResponse = await fetch(`${API_URL}/produtos`);
+                const produtos = await prodResponse.json();
+                const produtoDeletado = produtos.find(p => p.sku === skuParaDeletar);
+
                 const response = await fetch(`${API_URL}/produtos/${skuParaDeletar}`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
                 
+                if(produtoDeletado) {
+                    await logActivity('fas fa-trash-alt', 'red', 'Produto Excluído', `O produto "${produtoDeletado.nome}" foi removido.`);
+                }
                 alert('Produto excluído com sucesso!');
                 window.location.reload(); 
             } catch (error) {
@@ -110,12 +131,20 @@ if (modalOverlay) {
         } 
         else if (idParaDeletar) {
             try {
+                // (Precisamos pegar o nome da categoria antes de deletar)
+                const catResponse = await fetch(`${API_URL}/categorias`);
+                const categorias = await catResponse.json();
+                const categoriaDeletada = categorias.find(c => c.id == idParaDeletar);
+
                 const response = await fetch(`${API_URL}/categorias/${idParaDeletar}`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error);
                 
+                if (categoriaDeletada) {
+                    await logActivity('fas fa-trash-alt', 'red', 'Categoria Excluída', `A categoria "${categoriaDeletada.nome}" foi removida.`);
+                }
                 alert('Categoria excluída com sucesso!');
                 window.location.reload(); 
             } catch (error) {
@@ -143,7 +172,7 @@ if (formAddProduct) {
             custo: parseFloat(document.getElementById('preco-custo').value) || 0,
             venda: parseFloat(document.getElementById('preco-venda').value) || 0,
             qtd: parseInt(document.getElementById('qtd-inicial').value) || 0,
-            vencimento: document.getElementById('data-vencimento').value || null, // Envia nulo se vazio
+            vencimento: document.getElementById('data-vencimento').value || null,
             estoqueMinimo: parseInt(document.getElementById('estoque-minimo').value) || 10
         };
 
@@ -154,13 +183,11 @@ if (formAddProduct) {
                 body: JSON.stringify(novoProduto) 
             });
             const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
 
-            if (response.status === 201) { 
-                alert('Produto "' + novoProduto.nome + '" cadastrado com sucesso!');
-                window.location.href = 'produtos.html';
-            } else {
-                throw new Error(result.error);
-            }
+            await logActivity('fas fa-box', 'blue', 'Novo Produto Cadastrado', `"${novoProduto.nome}" foi adicionado ao sistema.`);
+            alert('Produto "' + novoProduto.nome + '" cadastrado com sucesso!');
+            window.location.href = 'produtos.html';
         } catch (error) {
             alert(`Erro ao cadastrar produto: ${error.message}`);
         }
@@ -172,6 +199,7 @@ if (formAddProduct) {
  * =====================================
  */
 const productTableBody = document.getElementById('product-table-body');
+let cacheProdutos = []; // Cache de produtos para os filtros
 
 function renderProductTable(produtosParaRenderizar) {
     const tabela = document.getElementById('product-table-body');
@@ -215,12 +243,11 @@ function renderProductTable(produtosParaRenderizar) {
 }
 
 if (productTableBody) {
-    let todosProdutos = []; // Cache para os filtros
     async function carregarProdutos() {
         try {
             const response = await fetch(`${API_URL}/produtos`);
-            todosProdutos = await response.json();
-            renderProductTable(todosProdutos);
+            cacheProdutos = await response.json(); // Salva no cache
+            renderProductTable(cacheProdutos);
         } catch (error) {
             productTableBody.innerHTML = `<tr><td colspan="6">Erro ao carregar produtos: ${error.message}</td></tr>`;
         }
@@ -230,7 +257,7 @@ if (productTableBody) {
 
 
 /* * =====================================
- * LÓGICA DE CATEGORIAS (ATUALIZADO)
+ * LÓGICA DE CATEGORIAS
  * =====================================
  */
 const formAddCategory = document.getElementById('form-add-categoria');
@@ -253,6 +280,7 @@ if (formAddCategory) {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
             
+            await logActivity('fas fa-tags', 'gray', 'Nova Categoria Adicionada', `A categoria "${categoryName}" foi criada.`);
             alert('Categoria "' + categoryName + '" salva com sucesso!');
             window.location.reload(); 
         } catch (error) {
@@ -281,7 +309,7 @@ if (categoryList) {
                     deleteButton.addEventListener('click', (event) => {
                         event.preventDefault();
                         const id = event.target.closest('.btn-action.delete').getAttribute('data-id');
-                        modalOverlay.dataset.id = id; // Salva o ID
+                        modalOverlay.dataset.id = id; 
                         openModal();
                     });
                 });
@@ -303,7 +331,7 @@ if (categorySelect) {
             
             categorias.forEach(categoria => {
                 const option = document.createElement('option');
-                option.value = categoria.nome; // Salva o nome
+                option.value = categoria.nome; 
                 option.textContent = categoria.nome; 
                 categorySelect.appendChild(option);
             });
@@ -316,7 +344,7 @@ if (categorySelect) {
 
 
 /* * =====================================
- * LÓGICA DE FECHAMENTO DE CAIXA (ATUALIZADO)
+ * LÓGICA DE FECHAMENTO DE CAIXA
  * =====================================
  */
 const formFechamento = document.getElementById('form-fechamento');
@@ -348,12 +376,13 @@ if (formFechamento) {
             });
             const result = await response.json();
             
-            if (response.status === 409) { // 409 = Conflito
+            if (response.status === 409) { 
                 alert('Erro: O caixa já foi fechado hoje!');
                 return;
             }
             if (!response.ok) throw new Error(result.error);
             
+            await logActivity('fas fa-wallet', 'yellow', 'Fechamento de Caixa', `Caixa fechado com R$ ${fechamento.total.toFixed(2)}.`);
             alert('Fechamento do dia salvo com sucesso! Total: R$ ' + fechamento.total.toFixed(2));
             window.location.href = 'dashboard.html';
         } catch (error) {
@@ -363,7 +392,7 @@ if (formFechamento) {
 }
 
 /* * =====================================
- * LÓGICA DE ATUALIZAR O DASHBOARD (ATUALIZADO PARA API)
+ * LÓGICA DE ATUALIZAR O DASHBOARD
  * =====================================
  */
 const statsGrid = document.querySelector('.stats-grid');
@@ -371,9 +400,9 @@ if (statsGrid) {
     
     async function carregarDashboard() {
         try {
+            // 1. Carrega os números dos cards
             const response = await fetch(`${API_URL}/dashboard-summary`);
             if (!response.ok) throw new Error('Falha ao carregar dados do dashboard.');
-            
             const data = await response.json();
 
             const totalProdutosCard = statsGrid.querySelector('.stat-icon.green').nextElementSibling.querySelector('strong');
@@ -392,10 +421,36 @@ if (statsGrid) {
             if (totalProdutosCard) totalProdutosCard.textContent = "Erro!";
         }
 
-        // (O Extrato de Atividades não foi migrado para o back-end, então o removemos)
+        // 2. Carrega o Extrato de Atividades
         const activityFeedList = document.getElementById('activity-feed-list');
         if (activityFeedList) {
-             activityFeedList.innerHTML = '<li class="feed-item"><span>O Extrato de Atividades será implementado.</span></li>';
+            try {
+                const response = await fetch(`${API_URL}/atividades`);
+                const activities = await response.json();
+                
+                activityFeedList.innerHTML = ''; 
+                if (activities.length > 0) {
+                    activities.forEach(act => {
+                        const li = document.createElement('li');
+                        li.className = 'feed-item';
+                        li.innerHTML = `
+                            <div class="activity-icon ${act.color}">
+                                <i class="${act.icon}"></i>
+                            </div>
+                            <div class="activity-details">
+                                <strong>${act.title}</strong>
+                                <span>${act.description}</span>
+                            </div>
+                            <span class="activity-time">${act.time_string}</span>
+                        `;
+                        activityFeedList.appendChild(li);
+                    });
+                } else {
+                    activityFeedList.innerHTML = '<li class="feed-item"><span>Nenhuma atividade recente.</span></li>';
+                }
+            } catch (error) {
+                activityFeedList.innerHTML = '<li class="feed-item"><span>Erro ao carregar atividades.</span></li>';
+            }
         }
     }
     carregarDashboard();
@@ -403,7 +458,7 @@ if (statsGrid) {
 
 
 /* * =====================================
- * LÓGICAS DOS RELATÓRIOS (ATUALIZADO)
+ * LÓGICAS DOS RELATÓRIOS
  * =====================================
  */
 const salesReportBody = document.getElementById('sales-report-body');
@@ -547,14 +602,13 @@ const qtdAtualInput = document.getElementById('produto-qtd-atual');
 const vencimentoSelecionadoInput = document.getElementById('produto-vencimento');
 
 if (searchInput) {
-    let cacheProdutos = []; // Cache para não buscar no DB a cada tecla
+    let cacheProdutosAutocomplete = []; 
     
-    // Pega os produtos da API quando o usuário foca no input
     searchInput.addEventListener('focus', async () => {
-        if (cacheProdutos.length === 0) {
+        if (cacheProdutosAutocomplete.length === 0) {
             try {
                 const response = await fetch(`${API_URL}/produtos`);
-                cacheProdutos = await response.json();
+                cacheProdutosAutocomplete = await response.json();
             } catch (e) { console.error("Falha ao buscar produtos para autocomplete"); }
         }
     });
@@ -566,7 +620,7 @@ if (searchInput) {
             return;
         }
         
-        const sugestoes = cacheProdutos.filter(p => 
+        const sugestoes = cacheProdutosAutocomplete.filter(p => 
             p.nome.toLowerCase().includes(termoBusca) || 
             p.sku.startsWith(termoBusca)
         );
@@ -629,6 +683,7 @@ if (formEntrada) {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
             
+            await logActivity('fas fa-arrow-down', 'green', 'Entrada de Estoque', `+${quantidadeParaAdicionar} unidades (SKU: ${skuParaAtualizar})`);
             alert(`Entrada registrada com sucesso!`);
             window.location.href = 'produtos.html'; 
         } catch (error) {
@@ -656,8 +711,8 @@ if (formSaida) {
         }
 
         // Pega o produto do cache do autocomplete
-        const produtos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
-        const produto = produtos.find(p => p.sku === skuParaAtualizar);
+        let cacheProdutos = JSON.parse(localStorage.getItem('listaDeProdutos')) || []; // (Reutiliza o cache da pág. de produtos)
+        const produto = cacheProdutos.find(p => p.sku === skuParaAtualizar);
 
         if (!produto) {
              alert('Erro: Produto selecionado não foi encontrado.');
@@ -687,6 +742,7 @@ if (formSaida) {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
             
+            await logActivity('fas fa-arrow-up', 'red', `Saída (${motivo})`, `-${quantidadeParaRemover} unidades de "${produto.nome}"`);
             alert(`Saída registrada com sucesso!`);
             window.location.href = 'produtos.html'; 
         } catch (error) {
@@ -761,6 +817,7 @@ if (formEditProduct) {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
             
+            await logActivity('fas fa-pencil-alt', 'blue', 'Produto Editado', `"${produtoAtualizado.nome}" (SKU: ${skuAtualizado}) foi atualizado.`);
             alert('Produto atualizado com sucesso!');
             window.location.href = 'produtos.html';
         } catch (error) {
@@ -914,15 +971,13 @@ const filtroCategoriaSelect = document.getElementById('filtro-categoria');
 async function aplicarFiltrosDeProduto() {
     if (!productTableBody) return; 
 
-    // Pega a lista "cacheada" que foi carregada com a página
-    let todosProdutos = JSON.parse(localStorage.getItem('listaDeProdutos')) || [];
-    
-    // Se o cache estiver vazio (ex: primeiro carregamento), busca na API
+    let todosProdutos = cacheProdutos; // Usa o cache
+    // Se o cache estiver vazio, busca na API
     if (todosProdutos.length === 0) {
         try {
             const response = await fetch(`${API_URL}/produtos`);
             todosProdutos = await response.json();
-            localStorage.setItem('listaDeProdutos', JSON.stringify(todosProdutos));
+            cacheProdutos = todosProdutos; // Salva no cache
         } catch(e) {
             console.error('Falha ao buscar produtos para filtro');
         }
@@ -941,7 +996,6 @@ async function aplicarFiltrosDeProduto() {
     renderProductTable(produtosFiltrados);
 }
 
-// Verifica se estamos na página de produtos (pois os filtros só existem lá)
 if (filtroBuscaInput) {
     // 1. Preenche o dropdown de categorias (agora pela API)
     async function carregarFiltroCategorias() {
@@ -970,7 +1024,6 @@ if (filtroBuscaInput) {
  * =====================================
  */
 
-// 1. Define as páginas do seu site
 const paginasDoSite = [
     { nome: 'Dashboard', href: 'dashboard.html', icone: 'fas fa-home' },
     { nome: 'Produtos', href: 'produtos.html', icone: 'fas fa-box' },
@@ -998,7 +1051,6 @@ if (globalSearchInput) {
             return;
         }
 
-        // Filtra a lista de PÁGINAS
         const sugestoes = paginasDoSite.filter(p => 
             p.nome.toLowerCase().includes(termoBusca)
         );
@@ -1007,10 +1059,9 @@ if (globalSearchInput) {
         if (sugestoes.length > 0) {
             sugestoes.forEach(p => {
                 const item = document.createElement('div');
-                item.className = 'suggestion-item'; // Reutiliza o mesmo estilo
+                item.className = 'suggestion-item';
                 item.innerHTML = `<i class="${p.icone}" style="margin-right: 8px;"></i> ${p.nome}`;
                 
-                // Adiciona o clique para navegar
                 item.addEventListener('click', () => {
                     window.location.href = p.href;
                 });
@@ -1023,9 +1074,7 @@ if (globalSearchInput) {
         }
     });
 
-    // Opcional: Esconde as sugestões se clicar fora
     document.addEventListener('click', function(event) {
-        // Verifica se o clique foi FORA da barra de pesquisa
         if (!event.target.closest('.search-bar')) {
             globalSearchResults.style.display = 'none';
         }

@@ -286,6 +286,42 @@ app.get('/relatorios/perdas', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+/* * =====================================
+ * ROTAS DE ATIVIDADES (NOVO)
+ * =====================================
+ */
+// ROTA PARA CRIAR UMA NOVA ATIVIDADE (POST)
+app.post('/atividades', async (req, res) => {
+    try {
+        const { icon, color, title, description, time } = req.body;
+        
+        const connection = await mysql.createConnection(dbConfig);
+        const sql = `
+            INSERT INTO atividades (icon, color, title, description, time_string)
+            VALUES (?, ?, ?, ?, ?)
+        `;
+        await connection.execute(sql, [icon, color, title, description, time]);
+        await connection.end();
+        
+        res.status(201).json({ message: 'Atividade registrada!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// ROTA PARA LER AS ÚLTIMAS ATIVIDADES (GET)
+app.get('/atividades', async (req, res) => {
+    try {
+        const connection = await mysql.createConnection(dbConfig);
+        // Pega as últimas 10, da mais nova para a mais antiga
+        const [rows] = await connection.execute(
+            'SELECT * FROM atividades ORDER BY created_at DESC LIMIT 10'
+        );
+        await connection.end();
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 /* * =====================================
  * ROTAS DE CONFIGURAÇÕES (NOVO)
@@ -331,6 +367,7 @@ app.put('/configuracoes', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 /* =========================================
