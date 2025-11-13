@@ -1,33 +1,36 @@
-/* === auth-guard.js (A VERSÃO FIREBASE) === */
+/* === auth-guard.js === */
+/* (ATUALIZADO: Com a correção do "loop" e para "index.html") */
 
-// Inicializa o Firebase (precisamos disso aqui também)
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-
+// Pega o nome do arquivo da página atual
 const currentPage = window.location.pathname.split('/').pop();
 
-auth.onAuthStateChanged(user => {
-    if (user) {
-        // --- USUÁRIO ESTÁ LOGADO ---
-        // Se ele está logado, mas não selecionou um perfil...
-        const currentProfile = localStorage.getItem('currentProfile');
-        if (!currentProfile && currentPage !== 'perfis.html' && currentPage !== 'configuracoes.html') {
-            // ...manda para a seleção de perfis.
-            window.location.href = 'perfis.html';
-        }
-        
-        // Se ele está logado e tenta ver o login...
-        if (currentPage === 'index.html' || currentPage === '') {
-            // ...manda para o dashboard.
-            window.location.href = 'dashboard.html';
-        }
-        
-    } else {
-        // --- USUÁRIO NÃO ESTÁ LOGADO ---
-        // Se ele não está logado, expulsa para o login
-        if (currentPage !== 'index.html' && currentPage !== '') {
-            alert('Você precisa estar logado para acessar esta página.');
-            window.location.href = 'index.html';
-        }
+// 1. Pega o "crachá" da CONTA
+const isAuthenticated = localStorage.getItem('userToken');
+
+// 2. Pega o "crachá" do PERFIL
+const currentProfile = localStorage.getItem('currentProfile');
+
+if (!isAuthenticated) {
+    // REGRA 1: Se não tem login (token), EXPULSA para o login.
+    // (A única exceção é a própria página de login/index)
+    if (currentPage !== 'index.html' && currentPage !== '') { // ('' é para o caso de /)
+        alert('Você precisa estar logado para acessar esta página.');
+        window.location.href = 'index.html'; // MUDANÇA AQUI
     }
-});
+} else {
+    // REGRA 2: Se ESTÁ logado, mas não selecionou um PERFIL...
+    if (
+        !currentProfile && 
+        currentPage !== 'perfis.html' && 
+        currentPage !== 'configuracoes.html' // <-- AQUI ESTÁ A CORREÇÃO DO LOOP
+    ) {
+        // ...EXPULSA para a seleção de perfis.
+        window.location.href = 'perfis.html';
+    }
+
+    // REGRA 3: Se ESTÁ logado E tem um perfil, mas tenta ver o login...
+    if (currentPage === 'index.html' || currentPage === '') {
+        // ...MANDA para o dashboard.
+        window.location.href = 'dashboard.html';
+    }
+}
