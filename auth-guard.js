@@ -12,9 +12,9 @@ const currentProfile = localStorage.getItem('currentProfile');
 
 if (!isAuthenticated) {
     // REGRA 1: Se não tem login (token), EXPULSA para o login.
-    if (currentPage !== 'login.html') {
+    if (currentPage !== 'index.html') {
         alert('Você precisa estar logado para acessar esta página.');
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
     }
 } else {
     // REGRA 2: Se ESTÁ logado, mas não selecionou um PERFIL...
@@ -29,7 +29,7 @@ if (!isAuthenticated) {
     }
 
     // REGRA 3: Se ESTÁ logado E tem um perfil, mas tenta ver o login...
-    if (currentPage === 'login.html') {
+    if (currentPage === 'index.html') {
         // ...MANDA para o dashboard.
         window.location.href = 'dashboard.html';
     }
