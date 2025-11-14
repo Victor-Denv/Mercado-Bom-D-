@@ -164,42 +164,43 @@ if (logoutButton) {
         }
     });
 }
-// --- LÓGICA DE CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN) ---
-async function carregarDadosGlobaisUsuario() {
-    const headerProfileName = document.getElementById('header-profile-name');
-    const headerProfilePic = document.getElementById('header-profile-pic');
+/// --- LÓGICA DE ATUALIZAR O DASHBOARD ---
+const statsGrid = document.querySelector('.stats-grid');
+if (statsGrid) {
     
-    // 1. Pega os dados salvos no localStorage
-    const empresaId = localStorage.getItem('empresaId');
-    const currentProfileName = localStorage.getItem('currentProfile');
+    async function carregarDashboard() {
+        const empresaId = localStorage.getItem('empresaId');
+        if (!empresaId) return; // Sai se não houver empresa logada
 
-    if (!headerProfileName) return; // Se não está numa página com header, não faz nada
-
-    if (currentProfileName) {
-        headerProfileName.textContent = currentProfileName;
-    } else {
-        // Isso não deve acontecer se o auth-guard estiver certo
-        headerProfileName.textContent = "Sem Perfil";
-    }
-
-    // 2. Busca a foto do perfil no Firestore
-    if (empresaId && currentProfileName) {
         try {
-            // O caminho agora é: "empresas" -> {empresaId} -> "perfis" -> {nomeDoPerfil}
-            // ATENÇÃO: Se você permitir renomear perfis, teremos que mudar isso
-            const perfilDocRef = doc(db, "empresas", empresaId, "perfis", currentProfileName);
-            const docSnap = await getDoc(perfilDocRef); // Precisamos importar getDoc
+            // 1. Caminhos para as coleções
+            const produtosRef = collection(db, "empresas", empresaId, "produtos");
+            const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
 
-            if (docSnap.exists()) {
-                const perfilData = docSnap.data();
-                if (headerProfilePic && perfilData.foto_perfil) {
-                    headerProfilePic.src = perfilData.foto_perfil;
-                }
-            }
+            // 2. Busca os dados (por enquanto, vamos apenas contar os produtos)
+            const produtosSnapshot = await getDocs(produtosRef);
+            // (Ainda não temos fechamentos, então vamos deixar em 0)
+
+            // 3. Pega os elementos HTML dos cards
+            const totalProdutosCard = statsGrid.querySelector('.stat-icon.green').nextElementSibling.querySelector('strong');
+            const vendasDiaCard = statsGrid.querySelector('.stat-icon.yellow').nextElementSibling.querySelector('strong');
+            const valorVendasMesCard = statsGrid.querySelector('.stat-icon.blue').nextElementSibling.querySelector('strong');
+            const estoqueMinimoCard = statsGrid.querySelector('.stat-icon.red').nextElementSibling.querySelector('strong');
+
+            // 4. Atualiza os valores na tela
+            if (totalProdutosCard) totalProdutosCard.textContent = produtosSnapshot.size; // Mostra o número real de produtos
+            if (vendasDiaCard) vendasDiaCard.textContent = "R$ 0,00"; // (Ainda não temos vendas)
+            if (valorVendasMesCard) valorVendasMesCard.textContent = "R$ 0,00"; // (Ainda não temos vendas)
+            if (estoqueMinimoCard) estoqueMinimoCard.textContent = 0; // (Ainda não temos estoque baixo)
+
         } catch (error) {
-            console.error("Erro ao buscar foto do perfil:", error);
-            if (headerProfilePic) headerProfilePic.src = 'https://via.placeholder.com/40'; // Foto padrão
+            console.error("Erro ao carregar dashboard:", error);
+            // Em caso de erro, zera os campos
+            const totalProdutosCard = statsGrid.querySelector('.stat-icon.green').nextElementSibling.querySelector('strong');
+            if (totalProdutosCard) totalProdutosCard.textContent = "Erro!";
         }
     }
-}
 
+    // Executa a função
+    carregarDashboard();
+}
