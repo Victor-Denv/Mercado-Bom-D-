@@ -1,35 +1,33 @@
-/* === auth-guard.js (VERSÃO FINAL) === */
+/* === auth-guard.js (A VERSÃO FIREBASE CORRETA) === */
 
-// Pega o nome do arquivo da página atual
+// Inicializa o Firebase (precisamos disso aqui também)
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
 const currentPage = window.location.pathname.split('/').pop();
 
-// 1. Pega o "crachá" da CONTA (agora checando pelo 'empresaId')
-const isAuthenticated = localStorage.getItem('empresaId');
-
-// 2. Pega o "crachá" do PERFIL (continua igual)
-const currentProfile = localStorage.getItem('currentProfile');
-
-if (!isAuthenticated) {
-    // REGRA 1: Se não tem login (empresaId), EXPULSA para o login.
-    // (A única exceção é a própria página de login e a nova de cadastro)
-    if (currentPage !== 'index.html' && currentPage !== 'cadastro.html' && currentPage !== '') {
-        alert('Você precisa estar logado para acessar esta página.');
-        window.location.href = 'index.html';
+auth.onAuthStateChanged(user => {
+    if (user) {
+        // --- USUÁRIO ESTÁ LOGADO ---
+        // Se ele está logado, mas não selecionou um perfil...
+        const currentProfile = localStorage.getItem('currentProfile');
+        if (!currentProfile && currentPage !== 'perfis.html' && currentPage !== 'configuracoes.html') {
+            // ...manda para a seleção de perfis.
+            window.location.href = 'perfis.html';
+        }
+        
+        // Se ele está logado e tenta ver o login...
+        if (currentPage === 'index.html' || currentPage === 'cadastro.html' || currentPage === '') {
+            // ...manda para o dashboard.
+            window.location.href = 'dashboard.html';
+        }
+        
+    } else {
+        // --- USUÁRIO NÃO ESTÁ LOGADO ---
+        // Se ele não está logado, expulsa para o login
+        if (currentPage !== 'index.html' && currentPage !== 'cadastro.html' && currentPage !== '') {
+            alert('Você precisa estar logado para acessar esta página.');
+            window.location.href = 'index.html';
+        }
     }
-} else {
-    // REGRA 2: Se ESTÁ logado, mas não selecionou um PERFIL...
-    if (
-        !currentProfile && 
-        currentPage !== 'perfis.html' && 
-        currentPage !== 'configuracoes.html' 
-    ) {
-        // ...EXPULSA para a seleção de perfis.
-        window.location.href = 'perfis.html';
-    }
-
-    // REGRA 3: Se ESTÁ logado E tem um perfil, mas tenta ver o login/cadastro...
-    if (currentPage === 'index.html' || currentPage === 'cadastro.html' || currentPage === '') {
-        // ...MANDA para o dashboard.
-        window.location.href = 'dashboard.html';
-    }
-}
+});

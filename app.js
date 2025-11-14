@@ -6,7 +6,6 @@ const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 
 /* * =====================================
  * NOVA FUNÇÃO MÁGICA: REDIMENSIONAR IMAGEM
- * (Isso converte a foto em texto para salvar no Firestore)
  * =====================================
  */
 function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
@@ -18,7 +17,6 @@ function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
                 let width = img.width;
                 let height = img.height;
 
-                // Calcula o redimensionamento
                 if (width > height) {
                     if (width > maxWidth) {
                         height = Math.round((height * maxWidth) / width);
@@ -53,7 +51,6 @@ function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();       // Nosso novo "Login"
 const db = firebase.firestore();    // Nosso novo "Banco de Dados"
-// const storage = firebase.storage(); // Não precisamos, usamos o Firestore
 
 
 /* * =====================================
@@ -71,7 +68,10 @@ async function carregarDadosGlobaisUsuario() {
     }
 
     try {
-        const snapshot = await db.collection('perfis').get();
+        const empresaId = localStorage.getItem('empresaId');
+        if (!empresaId) return; // Sai se não houver empresa logada
+        
+        const snapshot = await db.collection('empresas').doc(empresaId).collection('perfis').get();
         const perfis = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const perfilAtivo = perfis.find(p => p.nome === currentProfileName);
 
@@ -117,7 +117,6 @@ async function carregarDadosGlobaisUsuario() {
         if (headerProfilePic) headerProfilePic.src = 'https://via.placeholder.com/40';
     }
 }
-// Roda em todas as páginas, exceto login e perfis (que não têm header)
 if (document.getElementById('header-profile-pic')) {
     carregarDadosGlobaisUsuario();
 }
@@ -148,7 +147,57 @@ if (profileDropdown) {
 }
 
 
-// --- LÓGICA DA PÁGINA DE LOGIN (COM CRIAR CONTA) ---
+// --- LÓGICA DE CRIAR CONTA (NOVO!) ---
+const formCadastro = document.getElementById('form-cadastro');
+if (formCadastro) {
+    formCadastro.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const senha = document.getElementById('senha').value;
+        const confirmaSenha = document.getElementById('confirma-senha').value;
+
+        if (senha !== confirmaSenha) {
+            alert("As senhas não conferem!");
+            return; 
+        }
+
+        try {
+            const userCredential = await auth.createUserWithEmailAndPassword(email, senha);
+            const user = userCredential.user;
+
+            // Cria o "documento" da empresa no Firestore
+            const empresaDocRef = db.collection("empresas").doc(user.uid);
+            await empresaDocRef.set({
+                adminEmail: user.email,
+                createdAt: new Date(),
+                nomeMercado: "Meu Mercado" 
+            });
+
+            // Cria o perfil "Admin" padrão dentro da empresa
+            const perfilAdminRef = db.collection("empresas").doc(user.uid).collection("perfis").doc("admin");
+            await perfilAdminRef.set({
+                nome: "Admin",
+                foto_perfil: PLACEHOLDER_IMG
+            });
+
+            alert(`Conta criada com sucesso para ${user.email}! Você será redirecionado para o login.`);
+            window.location.href = 'index.html';
+
+        } catch (error) {
+            if (error.code === 'auth/email-already-in-use') {
+                alert("Erro: Este email já está em uso.");
+            } else if (error.code === 'auth/weak-password') {
+                alert("Erro: A senha é muito fraca. (Mínimo 6 caracteres)");
+            } else {
+                alert("Erro ao criar conta: " + error.message);
+                console.error("Erro de cadastro:", error);
+            }
+        }
+    });
+}
+
+// --- LÓGICA DE LOGIN (COM FIREBASE) ---
 const loginForm = document.getElementById('form-login');
 if (loginForm) {
     loginForm.addEventListener('submit', async function(event) {
@@ -157,20 +206,18 @@ if (loginForm) {
         const senha = document.getElementById('senha').value;
 
         try {
-            await auth.signInWithEmailAndPassword(email, senha);
-            localStorage.setItem('userToken', 'firebase-user'); 
+            const userCredential = await auth.signInWithEmailAndPassword(email, senha);
+            const user = userCredential.user;
+
+            // Salva o ID da CONTA (empresa)
+            localStorage.setItem('empresaId', user.uid); 
+            localStorage.removeItem('userToken'); // Remove o token antigo
             window.location.href = 'perfis.html';
+
         } catch (error) {
             console.error("Erro de login:", error.message);
             if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email' || error.code === 'auth/invalid-credential') {
-                if (confirm('Usuário não encontrado. Deseja criar uma nova conta com este e-mail e senha?')) {
-                    try {
-                        await auth.createUserWithEmailAndPassword(email, senha);
-                        alert('Conta criada! Faça o login agora.');
-                    } catch (createError) {
-                        alert('Erro ao criar conta: ' + createError.message);
-                    }
-                }
+                alert('Erro: Usuário não encontrado.');
             } else if (error.code === 'auth/wrong-password') {
                 alert('Senha incorreta.');
             } else {
@@ -187,7 +234,7 @@ if (logoutButton) {
         event.preventDefault(); 
         if (confirm('Você tem certeza que deseja sair?')) {
             auth.signOut().then(() => {
-                localStorage.removeItem('userToken'); 
+                localStorage.removeItem('empresaId'); 
                 localStorage.removeItem('currentProfile'); 
                 localStorage.removeItem(CONFIG_KEY); 
                 window.location.href = 'index.html';
@@ -203,6 +250,9 @@ if (logoutButton) {
 async function logActivity(icon, color, title, description) {
     try {
         const perfil = localStorage.getItem('currentProfile') || 'Sistema'; 
+        const empresaId = localStorage.getItem('empresaId');
+        if (!empresaId) return; // Não registra se não souber a empresa
+
         const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const newActivity = { 
             icon, 
@@ -214,7 +264,7 @@ async function logActivity(icon, color, title, description) {
             created_at: firebase.firestore.FieldValue.serverTimestamp() 
         }; 
 
-        await db.collection('atividades').add(newActivity);
+        await db.collection('empresas').doc(empresaId).collection('atividades').add(newActivity);
 
     } catch (error) {
         console.error('Falha ao registrar atividade:', error.message);
@@ -253,13 +303,20 @@ if (modalOverlay) {
         const skuParaDeletar = modalOverlay.dataset.sku;
         const idParaDeletar = modalOverlay.dataset.id; 
         const profileIdParaDeletar = modalOverlay.dataset.profileId;
+        const empresaId = localStorage.getItem('empresaId');
+
+        if (!empresaId) {
+            alert('Erro: ID da empresa não encontrado. Faça login novamente.');
+            return;
+        }
 
         if (skuParaDeletar) { // Deletar Produto
             try {
-                const produtoDoc = await db.collection('produtos').doc(skuParaDeletar).get();
+                const docRef = db.collection('empresas').doc(empresaId).collection('produtos').doc(skuParaDeletar);
+                const produtoDoc = await docRef.get();
                 const produtoDeletado = produtoDoc.data();
 
-                await db.collection('produtos').doc(skuParaDeletar).delete();
+                await docRef.delete();
                 
                 if(produtoDeletado) {
                     await logActivity('fas fa-trash-alt', 'red', 'Produto Excluído', `O produto "${produtoDeletado.nome}" foi removido.`);
@@ -273,10 +330,11 @@ if (modalOverlay) {
         } 
         else if (idParaDeletar) { // Deletar Categoria
             try {
-                const catDoc = await db.collection('categorias').doc(idParaDeletar).get();
+                const docRef = db.collection('empresas').doc(empresaId).collection('categorias').doc(idParaDeletar);
+                const catDoc = await docRef.get();
                 const categoriaDeletada = catDoc.data();
 
-                await db.collection('categorias').doc(idParaDeletar).delete();
+                await docRef.delete();
                 
                 if (categoriaDeletada) {
                     await logActivity('fas fa-trash-alt', 'red', 'Categoria Excluída', `A categoria "${categoriaDeletada.nome}" foi removida.`);
@@ -289,7 +347,8 @@ if (modalOverlay) {
         }
         else if (profileIdParaDeletar) { // Deletar Perfil
             try {
-                const perfilDoc = await db.collection('perfis').doc(profileIdParaDeletar).get();
+                const docRef = db.collection('empresas').doc(empresaId).collection('perfis').doc(profileIdParaDeletar);
+                const perfilDoc = await docRef.get();
                 const perfilDeletado = perfilDoc.data();
 
                 if (perfilDeletado && (perfilDeletado.nome === 'Admin' || perfilDeletado.nome === 'Vitor')) {
@@ -298,7 +357,7 @@ if (modalOverlay) {
                     return;
                 }
 
-                await db.collection('perfis').doc(profileIdParaDeletar).delete();
+                await docRef.delete();
 
                 if (perfilDeletado) {
                     await logActivity('fas fa-user-minus', 'red', 'Perfil Excluído', `O perfil "${perfilDeletado.nome}" foi removido.`);
@@ -326,6 +385,7 @@ if (formAddProduct) {
     formAddProduct.addEventListener('submit', async function(event) {
         event.preventDefault(); 
         
+        const empresaId = localStorage.getItem('empresaId');
         const sku = document.getElementById('sku-produto').value;
         if (!sku) {
             alert('Erro: O Código (SKU) é obrigatório!');
@@ -344,8 +404,8 @@ if (formAddProduct) {
         };
 
         try {
-            // Usa o SKU como ID do documento
-            await db.collection('produtos').doc(novoProduto.sku).set(novoProduto);
+            // Salva o produto DENTRO da coleção da empresa
+            await db.collection('empresas').doc(empresaId).collection('produtos').doc(novoProduto.sku).set(novoProduto);
 
             await logActivity('fas fa-box', 'blue', 'Novo Produto Cadastrado', `"${novoProduto.nome}" foi adicionado ao sistema.`);
             alert('Produto "' + novoProduto.nome + '" cadastrado com sucesso!');
@@ -407,7 +467,10 @@ function renderProductTable(produtosParaRenderizar) {
 if (productTableBody) {
     async function carregarProdutos() {
         try {
-            const snapshot = await db.collection('produtos').get();
+            const empresaId = localStorage.getItem('empresaId');
+            if (!empresaId) throw new Error("Empresa não logada.");
+
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
             cacheProdutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderProductTable(cacheProdutos);
         } catch (error) {
@@ -428,12 +491,13 @@ if (formAddCategory) {
         event.preventDefault();
         const categoryNameInput = document.getElementById('nome-categoria');
         const categoryName = categoryNameInput.value;
+        const empresaId = localStorage.getItem('empresaId');
         if (!categoryName) {
             alert('Por favor, digite o nome da categoria.');
             return;
         }
         try {
-            await db.collection('categorias').add({ nome: categoryName });
+            await db.collection('empresas').doc(empresaId).collection('categorias').add({ nome: categoryName });
             
             await logActivity('fas fa-tags', 'gray', 'Nova Categoria Adicionada', `A categoria "${categoryName}" foi criada.`);
             alert('Categoria "' + categoryName + '" salva com sucesso!');
@@ -447,7 +511,8 @@ const categoryList = document.querySelector('.category-list');
 if (categoryList) {
     async function carregarCategorias() {
         try {
-            const snapshot = await db.collection('categorias').orderBy('nome').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('categorias').orderBy('nome').get();
             const categorias = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
             categoryList.innerHTML = ''; 
@@ -481,7 +546,8 @@ const categorySelect = document.getElementById('categoria-produto');
 if (categorySelect) {
     async function carregarDropdownCategorias() {
         try {
-            const snapshot = await db.collection('categorias').orderBy('nome').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('categorias').orderBy('nome').get();
             const categorias = snapshot.docs.map(doc => doc.data());
             
             categorias.forEach(categoria => {
@@ -514,6 +580,7 @@ if (formFechamento) {
         
         const dataObj = new Date();
         const data = dataField.value;
+        const empresaId = localStorage.getItem('empresaId');
         const fechamento = {
             dinheiro: parseFloat(document.getElementById('total-dinheiro').value) || 0,
             cartao: parseFloat(document.getElementById('total-cartao').value) || 0,
@@ -525,8 +592,7 @@ if (formFechamento) {
         fechamento.total = fechamento.dinheiro + fechamento.cartao + fechamento.pix;
 
         try {
-            // Usa a data (DD/MM/AAAA) como ID do documento
-            const docRef = db.collection('fechamentos').doc(data);
+            const docRef = db.collection('empresas').doc(empresaId).collection('fechamentos').doc(data);
             const doc = await docRef.get();
             
             if (doc.exists) {
@@ -553,31 +619,29 @@ const statsGrid = document.querySelector('.stats-grid');
 if (statsGrid) {
     
     async function carregarDashboard() {
+        const empresaId = localStorage.getItem('empresaId');
+        if (!empresaId) return;
+
         try {
             // 1. Carrega os números dos cards
             
-            // Pega o total de produtos
-            const prodSnapshot = await db.collection('produtos').get();
+            const prodSnapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
             const totalProdutos = prodSnapshot.size;
 
-            // Pega os dados de fechamento
             const dataObj = new Date();
             const dataHoje = dataObj.toLocaleDateString('pt-BR');
             const mesAtual = dataObj.getMonth() + 1;
             const anoAtual = dataObj.getFullYear();
             
-            // Pega o fechamento de HOJE
-            const docDia = await db.collection('fechamentos').doc(dataHoje).get();
+            const docDia = await db.collection('empresas').doc(empresaId).collection('fechamentos').doc(dataHoje).get();
             const vendasDoDia = docDia.exists ? docDia.data().total : 0;
             
-            // Soma os totais do MÊS ATUAL
-            const mesSnapshot = await db.collection('fechamentos')
+            const mesSnapshot = await db.collection('empresas').doc(empresaId).collection('fechamentos')
                                         .where('mes', '==', mesAtual)
                                         .where('ano', '==', anoAtual)
                                         .get();
             const vendasDoMes = mesSnapshot.docs.reduce((sum, doc) => sum + doc.data().total, 0);
 
-            // Conta itens com estoque baixo
             const produtos = prodSnapshot.docs.map(doc => doc.data());
             const totalEstoqueBaixo = produtos.filter(p => (p.qtd || 0) <= (p.estoqueMinimo || 10)).length;
 
@@ -603,7 +667,7 @@ if (statsGrid) {
         const activityFeedList = document.getElementById('activity-feed-list');
         if (activityFeedList) {
             try {
-                const snapshot = await db.collection('atividades').orderBy('created_at', 'desc').limit(10).get();
+                const snapshot = await db.collection('empresas').doc(empresaId).collection('atividades').orderBy('created_at', 'desc').limit(10).get();
                 const activities = snapshot.docs.map(doc => doc.data());
                 
                 activityFeedList.innerHTML = ''; 
@@ -643,7 +707,8 @@ const salesReportBody = document.getElementById('sales-report-body');
 if (salesReportBody) {
     async function carregarRelatorioVendas() {
         try {
-            const snapshot = await db.collection('fechamentos').orderBy('ano', 'desc').orderBy('mes', 'desc').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('fechamentos').orderBy('ano', 'desc').orderBy('mes', 'desc').get();
             const fechamentos = snapshot.docs.map(doc => doc.data());
             
             salesReportBody.innerHTML = '';
@@ -673,7 +738,8 @@ const stockLowReportBody = document.getElementById('stock-low-report-body');
 if (stockLowReportBody) {
     async function carregarEstoqueBaixo() {
         try {
-            const snapshot = await db.collection('produtos').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
             const produtos = snapshot.docs.map(doc => doc.data());
             const itens = produtos.filter(p => (p.qtd || 0) <= (p.estoqueMinimo || 10));
             
@@ -704,7 +770,8 @@ const inventoryReportBody = document.getElementById('inventory-report-body');
 if (inventoryReportBody) {
     async function carregarInventario() {
         try {
-            const snapshot = await db.collection('produtos').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
             const itens = snapshot.docs.map(doc => doc.data());
 
             inventoryReportBody.innerHTML = '';
@@ -743,7 +810,8 @@ const lossesReportBody = document.getElementById('losses-report-body');
 if (lossesReportBody) {
     async function carregarPerdas() {
         try {
-            const snapshot = await db.collection('perdas').orderBy('created_at', 'desc').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('perdas').orderBy('created_at', 'desc').get();
             const perdas = snapshot.docs.map(doc => doc.data());
             
             lossesReportBody.innerHTML = '';
@@ -793,7 +861,8 @@ if (searchInput) {
     searchInput.addEventListener('focus', async () => {
         if (cacheProdutosAutocomplete.length === 0) {
             try {
-                const snapshot = await db.collection('produtos').get();
+                const empresaId = localStorage.getItem('empresaId');
+                const snapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
                 cacheProdutosAutocomplete = snapshot.docs.map(doc => doc.data());
             } catch (e) { console.error("Falha ao buscar produtos para autocomplete"); }
         }
@@ -858,7 +927,8 @@ if (formEntrada) {
             return;
         }
         try {
-            const docRef = db.collection('produtos').doc(skuParaAtualizar);
+            const empresaId = localStorage.getItem('empresaId');
+            const docRef = db.collection('empresas').doc(empresaId).collection('produtos').doc(skuParaAtualizar);
             
             await db.runTransaction(async (transaction) => {
                 const doc = await transaction.get(docRef);
@@ -889,6 +959,7 @@ if (formSaida) {
         const skuParaAtualizar = skuSelecionadoInput.value;
         const quantidadeParaRemover = parseInt(document.getElementById('quantidade-saida').value) || 0;
         const motivo = document.getElementById('motivo-saida').value; 
+        const empresaId = localStorage.getItem('empresaId');
 
         if (!skuParaAtualizar || quantidadeParaRemover <= 0) {
             alert('Erro: Você deve selecionar um produto da lista e inserir uma quantidade válida.');
@@ -896,7 +967,7 @@ if (formSaida) {
         }
 
         try {
-            const docRef = db.collection('produtos').doc(skuParaAtualizar);
+            const docRef = db.collection('empresas').doc(empresaId).collection('produtos').doc(skuParaAtualizar);
             let produto;
 
             await db.runTransaction(async (transaction) => {
@@ -916,7 +987,7 @@ if (formSaida) {
 
             // Se a transação deu certo, registra a perda
             const custoTotal = (parseFloat(produto.custo) || 0) * quantidadeParaRemover;
-            await db.collection('perdas').add({
+            await db.collection('empresas').doc(empresaId).collection('perdas').add({
                 data: new Date().toLocaleDateString('pt-BR'),
                 nome_produto: produto.nome,
                 produto_sku: skuParaAtualizar,
@@ -950,7 +1021,8 @@ if (formEditProduct) {
     if (skuParaEditar) {
         async function carregarProdutoParaEditar() {
             try {
-                const doc = await db.collection('produtos').doc(skuParaEditar).get();
+                const empresaId = localStorage.getItem('empresaId');
+                const doc = await db.collection('empresas').doc(empresaId).collection('produtos').doc(skuParaEditar).get();
                 if (!doc.exists) throw new Error('Produto não encontrado.');
                 
                 const produtoParaEditar = doc.data();
@@ -991,7 +1063,8 @@ if (formEditProduct) {
         };
 
         try {
-            await db.collection('produtos').doc(skuAtualizado).update(produtoAtualizado);
+            const empresaId = localStorage.getItem('empresaId');
+            await db.collection('empresas').doc(empresaId).collection('produtos').doc(skuAtualizado).update(produtoAtualizado);
             
             await logActivity('fas fa-pencil-alt', 'blue', 'Produto Editado', `"${produtoAtualizado.nome}" (SKU: ${skuAtualizado}) foi atualizado.`);
             alert('Produto atualizado com sucesso!');
@@ -1011,11 +1084,13 @@ if (formConfigMercado) {
     // 1. Carregar os dados
     async function carregarConfiguracoes() {
         try {
-            const doc = await db.collection('configuracoes').doc('global').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const doc = await db.collection('empresas').doc(empresaId).get();
             const config = doc.exists ? doc.data() : {};
             
+            // (No Firebase, não temos uma tabela 'usuarios' separada para o admin)
             document.getElementById('nome-completo').value = config.nomeAdmin || 'Admin';
-            document.getElementById('email').value = config.emailAdmin || auth.currentUser.email;
+            document.getElementById('email').value = config.adminEmail || auth.currentUser.email;
             if(config.profilePic) {
                 document.getElementById('profile-pic-preview').src = config.profilePic;
             }
@@ -1032,7 +1107,6 @@ if (formConfigMercado) {
 
 const profilePicInput = document.getElementById('profile-pic-input');
 const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); 
-// let fotoBase64 = null; // Removido, vamos ler direto do preview
 
 if (profilePicInput) {
     profilePicInput.addEventListener('change', async function(event) {
@@ -1043,6 +1117,10 @@ if (profilePicInput) {
         try {
             const resizedBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
             preview.src = resizedBase64;
+            
+            if(formEditPerfil) { // Se estiver na pág de editar perfil
+                fotoBase64 = resizedBase64;
+            }
         } catch (e) {
             alert('Erro ao processar imagem. Tente JPG ou PNG.');
         }
@@ -1053,6 +1131,10 @@ if(profilePicRemoveBtn) {
         const preview = document.getElementById('profile-pic-preview');
         preview.src = PLACEHOLDER_IMG;
         profilePicInput.value = null; 
+        
+        if(formEditPerfil) { // Se estiver na pág de editar perfil
+            fotoBase64 = null;
+        }
     });
 }
 
@@ -1063,20 +1145,19 @@ if (formMeuPerfil) {
         
         const newSrc = document.getElementById('profile-pic-preview').src;
         const finalPic = newSrc.includes('placeholder.com') ? null : newSrc;
+        const empresaId = localStorage.getItem('empresaId');
 
         const config = {
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value, 
-            profilePic: finalPic 
-        };
-        const configMercado = {
+            profilePic: finalPic,
             nomeMercado: document.getElementById('nome-mercado').value,
             cnpj: document.getElementById('cnpj').value,
             estoqueMinimoPadrao: parseInt(document.getElementById('estoque-minimo').value) || 10
         };
         
         try {
-            await db.collection('configuracoes').doc('global').set({ ...config, ...configMercado }, { merge: true });
+            await db.collection('empresas').doc(empresaId).set(config, { merge: true });
             
             alert('Perfil salvo com sucesso!');
             localStorage.setItem(CONFIG_KEY, JSON.stringify({ profilePic: finalPic }));
@@ -1092,20 +1173,19 @@ if (formConfigMercado) {
         
         const newSrc = document.getElementById('profile-pic-preview').src;
         const finalPic = newSrc.includes('placeholder.com') ? null : newSrc;
+        const empresaId = localStorage.getItem('empresaId');
         
         const config = {
             nomeMercado: document.getElementById('nome-mercado').value,
             cnpj: document.getElementById('cnpj').value,
-            estoqueMinimoPadrao: parseInt(document.getElementById('estoque-minimo').value) || 10
-        };
-        const configPerfil = {
+            estoqueMinimoPadrao: parseInt(document.getElementById('estoque-minimo').value) || 10,
             nomeAdmin: document.getElementById('nome-completo').value,
             emailAdmin: document.getElementById('email').value,
             profilePic: finalPic
         };
 
         try {
-            await db.collection('configuracoes').doc('global').set({ ...config, ...configPerfil }, { merge: true });
+            await db.collection('empresas').doc(empresaId).set(config, { merge: true });
             
             alert('Configurações do Mercado salvas com sucesso!');
         } catch(e) {
@@ -1168,7 +1248,8 @@ async function aplicarFiltrosDeProduto() {
     let todosProdutos = cacheProdutos;
     if (todosProdutos.length === 0) {
         try {
-            const snapshot = await db.collection('produtos').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('produtos').get();
             todosProdutos = snapshot.docs.map(doc => doc.data());
             cacheProdutos = todosProdutos;
         } catch(e) {
@@ -1192,7 +1273,8 @@ async function aplicarFiltrosDeProduto() {
 if (filtroBuscaInput) {
     async function carregarFiltroCategorias() {
         try {
-            const snapshot = await db.collection('categorias').orderBy('nome').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('categorias').orderBy('nome').get();
             const categorias = snapshot.docs.map(doc => doc.data());
             
             categorias.forEach(categoria => {
@@ -1279,7 +1361,8 @@ const profileGrid = document.getElementById('profile-grid');
 if (profileGrid) {
     async function carregarPerfis() {
         try {
-            const snapshot = await db.collection('perfis').get();
+            const empresaId = localStorage.getItem('empresaId');
+            const snapshot = await db.collection('empresas').doc(empresaId).collection('perfis').get();
             const perfis = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
             profileGrid.innerHTML = ''; 
@@ -1309,7 +1392,8 @@ const profileList = document.getElementById('profile-list');
 async function carregarGerenciarPerfis() {
     if (!profileList) return; 
     try {
-        const snapshot = await db.collection('perfis').get();
+        const empresaId = localStorage.getItem('empresaId');
+        const snapshot = await db.collection('empresas').doc(empresaId).collection('perfis').get();
         const perfis = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         profileList.innerHTML = '';
@@ -1345,9 +1429,10 @@ if (formAddPerfil) {
         event.preventDefault();
         const input = document.getElementById('nome-perfil');
         const nome = input.value;
+        const empresaId = localStorage.getItem('empresaId');
         if (!nome) return;
         try {
-            await db.collection('perfis').add({ 
+            await db.collection('empresas').doc(empresaId).collection('perfis').add({ 
                 nome: nome,
                 foto_perfil: PLACEHOLDER_IMG 
             });
@@ -1379,7 +1464,8 @@ if (formEditPerfil) {
             return;
         }
         try {
-            const doc = await db.collection('perfis').doc(perfilId).get();
+            const empresaId = localStorage.getItem('empresaId');
+            const doc = await db.collection('empresas').doc(empresaId).collection('perfis').doc(perfilId).get();
             if (!doc.exists) throw new Error('Perfil não encontrado.');
             
             const perfil = doc.data();
@@ -1430,7 +1516,8 @@ if (formEditPerfil) {
         }
 
         try {
-            await db.collection('perfis').doc(perfilId).update({
+            const empresaId = localStorage.getItem('empresaId');
+            await db.collection('empresas').doc(empresaId).collection('perfis').doc(perfilId).update({
                 nome: nome,
                 foto_perfil: fotoBase64 // Envia o texto Base64 ou null
             });
