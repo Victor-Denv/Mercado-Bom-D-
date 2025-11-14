@@ -10,9 +10,9 @@ import {
 
 import {
     doc, setDoc, getDoc, collection, getDocs, addDoc, deleteDoc, updateDoc,
-    query, where, Timestamp, serverTimestamp, increment, writeBatch
+    query, where, Timestamp, serverTimestamp, increment, writeBatch,
+    orderBy, limit // <-- ESTAS SÃO AS ADIÇÕES
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-
 import {
     ref, uploadString, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
@@ -307,16 +307,19 @@ function aplicarFiltrosDeProduto() {
     });
 }
 
-async function carregarDashboard() {
+aasync function carregarDashboard() {
     const statsGrid = document.querySelector('.stats-grid');
     if (!statsGrid) return;
     const empresaId = getEmpresaId();
     if (!empresaId) return;
+    
     const totalProdutosCard = statsGrid.querySelector('.stat-icon.green + .stat-info strong');
     const vendasDiaCard = statsGrid.querySelector('.stat-icon.yellow + .stat-info strong');
     const valorVendasMesCard = statsGrid.querySelector('.stat-icon.blue + .stat-info strong');
     const estoqueMinimoCard = statsGrid.querySelector('.stat-icon.red + .stat-info strong');
+    
     try {
+        // 1. Produtos e Estoque Baixo
         const produtosRef = collection(db, "empresas", empresaId, "produtos");
         const produtosSnap = await getDocs(produtosRef);
         let totalEstoqueBaixo = 0;
@@ -327,6 +330,7 @@ async function carregarDashboard() {
         if (totalProdutosCard) totalProdutosCard.textContent = produtosSnap.size;
         if (estoqueMinimoCard) estoqueMinimoCard.textContent = totalEstoqueBaixo;
 
+        // 2. Vendas
         const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
         const fechamentosSnap = await getDocs(fechamentosRef);
         const hoje = new Date(), hojeID = hoje.toISOString().split('T')[0];
@@ -340,13 +344,19 @@ async function carregarDashboard() {
         });
         if (vendasDiaCard) vendasDiaCard.textContent = `R$ ${totalVendasDia.toFixed(2)}`;
         if (valorVendasMesCard) valorVendasMesCard.textContent = `R$ ${totalVendasMes.toFixed(2)}`;
-    } catch (e) { console.error(e); }
 
+    } catch (e) { console.error("Erro ao carregar Dashboard:", e); }
+
+    // 3. Atividades Recentes
     const activityFeedList = document.getElementById('activity-feed-list');
     if (activityFeedList) {
         try {
             const atividadesRef = collection(db, "empresas", empresaId, "atividades");
-            const q = query(atividadesRef, where("timestamp", "<=", new Date()), 10);
+            
+            // --- ESTA É A LINHA CORRIGIDA ---
+            const q = query(atividadesRef, orderBy("timestamp", "desc"), limit(10));
+            // --- FIM DA CORREÇÃO ---
+            
             const activitySnap = await getDocs(q);
             activityFeedList.innerHTML = '';
             if (activitySnap.empty) {
@@ -362,8 +372,9 @@ async function carregarDashboard() {
                     <span class="activity-time">${act.time_string}</span>`;
                 activityFeedList.appendChild(li);
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Erro ao carregar Atividades:", e); }
     }
+}
 }
 // --- CARREGA O DROPDOWN DE PERFIS (NOVO) ---
 async function carregarDropdownPerfis() {
