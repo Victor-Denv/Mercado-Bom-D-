@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrar Venda - Mercado BOM D+</title>
+    <title>Relatório: Vendas Diárias - Mercado BOM D+</title>
+
+    <script src="auth-guard.js"></script>
+
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <script src="app.js"></script>
 
     <nav class="sidebar">
         <div class="sidebar-header">
             <h3>Mercado BOM D+</h3>
         </div>
         <ul>
-            <li class="active"><a href="dashboard.html"><i class="fas fa-home"></i> Início</a></li>
+            <li><a href="dashboard.html"><i class="fas fa-home"></i> Início</a></li>
             <li><a href="produtos.html"><i class="fas fa-box"></i> Produtos</a></li>
             <li><a href="categorias.html"><i class="fas fa-tags"></i> Categorias</a></li>
-            <li><a href="relatorios-vendas.html"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
+            <li class="active"><a href="relatorios-vendas.html"><i class="fas fa-chart-bar"></i> Relatórios</a></li>
             <li><a href="configuracoes.html"><i class="fas fa-cog"></i> Configurações</a></li>
         </ul>
         <div class="sidebar-footer">
@@ -28,12 +30,12 @@
 
     <main class="content">
         
-    <header class="top-header">
+ <header class="top-header">
             <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
-                <div id="global-search-results" class="suggestions-list" style="display: none;"></div>
-            </div>
+                <i class="fas fa-search"></i>
+                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
+                <div id="global-search-results" class="suggestions-list" style="display: none;"></div>
+            </div>
             
             <div class="user-info">
                 <i class="fas fa-bell"></i>
@@ -51,57 +53,61 @@
                 </div>
                 </div>
         </header>
+
         <div class="page-header">
-            <h1>Registrar Venda</h1>
-            <a href="dashboard.html" class="btn-secondary">Voltar ao Dashboard</a>
+            <h1>Relatórios do Estoque</h1>
         </div>
 
+        <h2 class="section-title">Selecionar Relatório</h2>
+        <div class="report-selector">
+            <a href="relatorios-vendas.html" class="report-card active">
+                <i class="fas fa-wallet"></i>
+                <h4>Vendas Diárias</h4>
+                <small>Histórico de vendas por dia.</small>
+            </a>
+            <a href="relatorios-estoque-baixo.html" class="report-card">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h4>Estoque Baixo</h4>
+                <small>Itens que precisam de reposição.</small>
+            </a>
+            <a href="relatorios-inventario.html" class="report-card">
+                <i class="fas fa-dollar-sign"></i>
+                <h4>Inventário (Valor)</h4>
+                <small>Valor total de custo do estoque.</small>
+            </a>
+            <a href="relatorios-perdas.html" class="report-card">
+                <i class="fas fa-arrow-down"></i>
+                <h4>Perdas e Ajustes</h4>
+                <small>Saídas que não foram vendas.</small>
+            </a>
+        </div>
+        
         <div class="card">
-            <form id="form-add-venda" class="form-layout">
-                
-                <div class="form-grid">
-                    <div class="form-group full-width">
-                        <label for="buscar-produto">Buscar Produto Vendido (SKU ou Nome)</label>
-                        <input type="text" id="buscar-produto" placeholder="Digite o SKU ou nome do produto..." required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="quantidade">Quantidade Vendida</label>
-                        <input type="number" id="quantidade" step="1" placeholder="0" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="valor-total">Valor Total da Venda (R$)</label>
-                        <input type="number" id="valor-total" step="0.01" placeholder="R$ 0,00" required>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label for="metodo-pagamento">Método de Pagamento</label>
-                        <select id="metodo-pagamento" required>
-                            <option value="">Selecione o método</option>
-                            <option value="cartao">Cartão</option>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="pix">Pix</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn-primary">Registrar Venda</button>
-                    <a href="dashboard.html" class="btn-secondary">Cancelar</a>
-                </div>
-
-            </form>
+            <div class="card-header">
+                <h3 class="card-title">Relatório: Histórico de Vendas Diárias</h3>
+                <button class="btn-secondary"><i class="fas fa-print"></i> Imprimir</button>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Total Vendas (R$)</th>
+                            <th>Cartão (R$)</th>
+                            <th>Dinheiro (R$)</th>
+                            <th>Pix (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-report-body">
+                        </tbody>
+                </table>
+            </div>
         </div>
-         <small class="form-hint" style="margin-top: 15px;">
-            Nota: Este formulário registra a venda de um tipo de produto por vez. O Back-end irá somar todas as vendas registradas hoje para o "Total do Dia".
-         </small>
+
     </main>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script> <script src="firebase-config.js"></script>
-    
-    <script src="app.js"></script>
+
+    <script type="module" src="app.js"></script>
+
 </body>
 </html>

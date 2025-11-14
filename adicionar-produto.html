@@ -32,10 +32,10 @@
         
      <header class="top-header">
             <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
-                <div id="global-search-results" class="suggestions-list" style="display: none;"></div>
-            </div>
+                <i class="fas fa-search"></i>
+                <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
+                <div id="global-search-results" class="suggestions-list" style="display: none;"></div>
+            </div>
             
             <div class="user-info">
                 <i class="fas fa-bell"></i>
@@ -74,7 +74,7 @@
                         <label for="categoria-produto">Categoria</label>
                         <select id="categoria-produto" required>
                             <option value="">Selecione uma categoria</option>
-                        </select>
+                            </select>
                     </div>
                     <div class="form-group">
                         <label for="preco-custo">Preço de Custo (R$)</label>
@@ -104,15 +104,8 @@
             </form>
         </div>
     </main>
-
-   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
-
-<script src="firebase-config.js"></script>
-
-<script src="app.js"></script>
+   
+    <script type="module" src="app.js"></script>
     
 </body>
 </html>
