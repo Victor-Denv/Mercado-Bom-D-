@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL - DEPLOY V2) === */
+/* === app.js (VERSÃO FINAL LIMPA) === */
 
 // --- IMPORTS DO FIREBASE (CDN) ---
 import {
@@ -22,28 +22,27 @@ import { auth, db, storage } from './firebase-config.js';
 
 // --- CONSTANTES GLOBAIS ---
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
+let cacheProdutos = [];
+let cacheCategorias = [];
+let deleteConfig = {}; // Para o modal
+let fotoBase64 = null; // Para editar perfil
+let fotoAtualURL = null; // Para editar perfil
+
 
 /* * =====================================
- * FUNÇÃO AUXILIAR: PEGAR ID DA EMPRESA
+ * FUNÇÕES AUXILIARES
  * ===================================== */
 function getEmpresaId() {
-    // Esta função SÓ deve ser chamada DEPOIS que o auth estiver confirmado
     const empresaId = localStorage.getItem('empresaId');
-    if (!empresaId) {
-        console.warn("ID da Empresa não encontrado no localStorage.");
-    }
+    if (!empresaId) console.warn("ID da Empresa não encontrado.");
     return empresaId;
 }
 
-/* * =====================================
- * FUNÇÃO AUXILIAR: REGISTRAR ATIVIDADE
- * ===================================== */
 async function logActivity(icon, color, title, description) {
     try {
         const empresaId = localStorage.getItem('empresaId');
         const perfil = localStorage.getItem('currentProfile') || 'Sistema';
         if (!empresaId) return;
-
         const newActivity = {
             icon, color, title, description,
             perfil_nome: perfil,
@@ -52,17 +51,40 @@ async function logActivity(icon, color, title, description) {
         };
         const atividadesRef = collection(db, "empresas", empresaId, "atividades");
         await addDoc(atividadesRef, newActivity);
-    } catch (error) {
-        console.error('Falha ao registrar atividade:', error.message);
-    }
+    } catch (e) { console.error('Falha ao registrar atividade:', e.message); }
 }
 
+function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width, height = img.height;
+                if (width > height) {
+                    if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                } else {
+                    if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width; canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = (e) => reject(e);
+            img.src = event.target.result;
+        };
+        reader.onerror = (e) => reject(e);
+        reader.readAsDataURL(file);
+    });
+}
+
+
 /* * =====================================
- * DEFINIÇÕES DE FUNÇÕES (Carregamento de Páginas)
- * (Estas funções são definidas primeiro, e chamadas pelo listener de auth)
+ * FUNÇÕES DE CARREGAMENTO DE PÁGINA
+ * (Definidas primeiro, chamadas depois)
  * ===================================== */
 
-// --- CARREGA HEADER ---
 async function carregarDadosGlobaisUsuario() {
     const headerProfileName = document.getElementById('header-profile-name');
     const headerProfilePic = document.getElementById('header-profile-pic');
@@ -77,7 +99,6 @@ async function carregarDadosGlobaisUsuario() {
         headerProfileName.textContent = "Carregando...";
         return;
     }
-
     if (empresaId) {
         try {
             const perfilDocRef = doc(db, "empresas", empresaId, "perfis", currentProfileName);
@@ -85,14 +106,10 @@ async function carregarDadosGlobaisUsuario() {
             if (docSnap.exists()) {
                 headerProfilePic.src = docSnap.data().foto_perfil || 'https://via.placeholder.com/40';
             }
-        } catch (error) {
-            console.error("Erro ao buscar foto do perfil:", error);
-            headerProfilePic.src = 'https://via.placeholder.com/40';
-        }
+        } catch (e) { console.error(e); }
     }
 }
 
-// --- CARREGA TELA DE PERFIS ---
 async function carregarPerfis() {
     const profileGrid = document.getElementById('profile-grid');
     if (!profileGrid) return;
@@ -123,8 +140,6 @@ async function carregarPerfis() {
     } catch (e) { console.error(e); }
 }
 
-// --- MODAL DE CONFIRMAÇÃO ---
-let deleteConfig = {}; // Deve ser global para o modal
 function openModal(config) {
     const modalOverlay = document.getElementById('delete-modal');
     if (modalOverlay) {
@@ -139,46 +154,9 @@ function closeModal() {
         modalOverlay.style.display = 'none';
     }
 }
-// Adiciona listeners aos botões do modal (só precisa ser feito uma vez)
-const modalBtnCancel = document.getElementById('modal-btn-cancel');
-const modalBtnConfirm = document.getElementById('modal-btn-confirm');
-const modalCloseIcon = document.querySelector('.modal-close-icon');
-if (modalBtnCancel) modalBtnCancel.addEventListener('click', closeModal);
-if (modalCloseIcon) modalCloseIcon.addEventListener('click', closeModal);
-if (modalBtnConfirm) {
-    modalBtnConfirm.addEventListener('click', async () => {
-        const empresaId = getEmpresaId();
-        if (!empresaId || !deleteConfig.type || !deleteConfig.id) return closeModal();
 
-        let docRef;
-        let logMessage = "";
-        try {
-            if (deleteConfig.type === 'categoria') {
-                docRef = doc(db, "empresas", empresaId, "categorias", deleteConfig.id);
-                logMessage = `Categoria "${deleteConfig.nome || ''}" foi removida.`;
-            } else if (deleteConfig.type === 'produto') {
-                docRef = doc(db, "empresas", empresaId, "produtos", deleteConfig.id);
-                logMessage = `Produto "${deleteConfig.nome || ''}" (SKU: ${deleteConfig.id}) foi removido.`;
-            } else if (deleteConfig.type === 'perfil') {
-                docRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
-                logMessage = `Perfil "${deleteConfig.id}" foi removido.`;
-            }
-            await deleteDoc(docRef);
-            await logActivity('fas fa-trash-alt', 'red', 'Item Excluído', logMessage);
-            closeModal();
-            // Recarrega a lista específica
-            if (deleteConfig.type === 'categoria') carregarCategorias();
-            if (deleteConfig.type === 'produto') carregarProdutos();
-            if (deleteConfig.type === 'perfil') carregarGerenciarPerfis();
-        } catch (e) { alert(`Erro ao excluir: ${e.message}`); }
-    });
-}
-
-// --- CARREGA CATEGORIAS (e preenche dropdowns) ---
-let cacheCategorias = [];
 async function carregarCategorias() {
     const categoryList = document.querySelector('.category-list');
-    // Esta função agora é chamada em todas as páginas para preencher os dropdowns
     const empresaId = getEmpresaId();
     if (!empresaId) return;
 
@@ -186,7 +164,7 @@ async function carregarCategorias() {
     try {
         const querySnapshot = await getDocs(categoriasRef);
         cacheCategorias = [];
-        if (categoryList) categoryList.innerHTML = ''; // Limpa a lista visual (só na pág. categorias)
+        if (categoryList) categoryList.innerHTML = ''; // Limpa a lista visual
 
         if (querySnapshot.empty && categoryList) {
             categoryList.innerHTML = '<li><span>Nenhuma categoria cadastrada.</span></li>';
@@ -197,7 +175,6 @@ async function carregarCategorias() {
             const categoriaId = docSnap.id;
             cacheCategorias.push({ id: categoriaId, nome: categoria.nome });
 
-            // Preenche a lista <ul> (só na pág. categorias)
             if (categoryList) {
                 const li = document.createElement('li');
                 li.innerHTML = `<span>${categoria.nome}</span> <button class="btn-action delete"><i class="fas fa-trash-alt"></i></button>`;
@@ -209,7 +186,7 @@ async function carregarCategorias() {
             }
         });
         popularDropdownCategorias(cacheCategorias);
-    } catch (e) { console.error("Erro ao carregar categorias: ", e); }
+    } catch (e) { console.error(e); }
 }
 
 function popularDropdownCategorias(categorias) {
@@ -228,8 +205,6 @@ function popularDropdownCategorias(categorias) {
     });
 }
 
-// --- CARREGA PRODUTOS (e cache) ---
-let cacheProdutos = [];
 async function carregarProdutos() {
     const productTableBody = document.getElementById('product-table-body');
     if (!productTableBody) return;
@@ -246,7 +221,7 @@ async function carregarProdutos() {
         }
         querySnapshot.forEach(docSnap => {
             const produto = docSnap.data();
-            cacheProdutos.push(produto); // Adiciona ao cache para filtros e autocomplete
+            cacheProdutos.push(produto);
             const tr = document.createElement('tr');
             const emEstoqueBaixo = produto.qtd <= produto.estoque_minimo;
             tr.innerHTML = `
@@ -264,14 +239,12 @@ async function carregarProdutos() {
             tr.querySelector('.btn-action.delete').addEventListener('click', () => openModal({ type: 'produto', id: produto.sku, nome: produto.nome }));
             tr.querySelector('.btn-action.edit').addEventListener('click', () => window.location.href = `editar-produto.html?sku=${produto.sku}`);
         });
-    } catch (e) { console.error("Erro ao carregar produtos:", e); }
+    } catch (e) { console.error(e); }
 }
 
-// --- FORM EDITAR PRODUTO ---
 async function carregarProdutoParaEditar() {
     const formEditProduct = document.getElementById('form-edit-product');
     if (!formEditProduct) return;
-
     const urlParams = new URLSearchParams(window.location.search);
     const skuParaEditar = urlParams.get('sku');
     if (!skuParaEditar) {
@@ -300,21 +273,17 @@ async function carregarProdutoParaEditar() {
     } catch (e) { alert('Erro ao carregar dados do produto.'); }
 }
 
-// --- FILTRO DE PRODUTOS ---
 function aplicarFiltrosDeProduto() {
     const productTableBody = document.getElementById('product-table-body');
-    if (!productTableBody) return; // Só roda na página de produtos
-
+    if (!productTableBody) return;
     const filtroBuscaInput = document.getElementById('filtro-busca');
     const filtroCategoriaSelect = document.getElementById('filtro-categoria');
     const termoBusca = filtroBuscaInput ? filtroBuscaInput.value.toLowerCase() : '';
     const categoriaSelecionada = filtroCategoriaSelect ? filtroCategoriaSelect.value : '';
-    
     const produtosFiltrados = cacheProdutos.filter(p =>
         (p.nome.toLowerCase().includes(termoBusca) || p.sku.toLowerCase().includes(termoBusca)) &&
         (categoriaSelecionada === "" || p.categoria_nome === categoriaSelecionada)
     );
-    // Renderiza a tabela
     productTableBody.innerHTML = '';
     if (produtosFiltrados.length === 0) {
         productTableBody.innerHTML = '<tr><td colspan="6">Nenhum produto encontrado.</td></tr>';
@@ -338,20 +307,16 @@ function aplicarFiltrosDeProduto() {
     });
 }
 
-// --- CARREGA DASHBOARD ---
 async function carregarDashboard() {
     const statsGrid = document.querySelector('.stats-grid');
     if (!statsGrid) return;
     const empresaId = getEmpresaId();
     if (!empresaId) return;
-    
     const totalProdutosCard = statsGrid.querySelector('.stat-icon.green + .stat-info strong');
     const vendasDiaCard = statsGrid.querySelector('.stat-icon.yellow + .stat-info strong');
     const valorVendasMesCard = statsGrid.querySelector('.stat-icon.blue + .stat-info strong');
     const estoqueMinimoCard = statsGrid.querySelector('.stat-icon.red + .stat-info strong');
-    
     try {
-        // 1. Produtos e Estoque Baixo
         const produtosRef = collection(db, "empresas", empresaId, "produtos");
         const produtosSnap = await getDocs(produtosRef);
         let totalEstoqueBaixo = 0;
@@ -362,7 +327,6 @@ async function carregarDashboard() {
         if (totalProdutosCard) totalProdutosCard.textContent = produtosSnap.size;
         if (estoqueMinimoCard) estoqueMinimoCard.textContent = totalEstoqueBaixo;
 
-        // 2. Vendas
         const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
         const fechamentosSnap = await getDocs(fechamentosRef);
         const hoje = new Date(), hojeID = hoje.toISOString().split('T')[0];
@@ -376,15 +340,13 @@ async function carregarDashboard() {
         });
         if (vendasDiaCard) vendasDiaCard.textContent = `R$ ${totalVendasDia.toFixed(2)}`;
         if (valorVendasMesCard) valorVendasMesCard.textContent = `R$ ${totalVendasMes.toFixed(2)}`;
+    } catch (e) { console.error(e); }
 
-    } catch (e) { console.error("Erro ao carregar Dashboard:", e); }
-
-    // 3. Atividades Recentes
     const activityFeedList = document.getElementById('activity-feed-list');
     if (activityFeedList) {
         try {
             const atividadesRef = collection(db, "empresas", empresaId, "atividades");
-            const q = query(atividadesRef, where("timestamp", "<=", new Date()), 10); // Limita a 10
+            const q = query(atividadesRef, where("timestamp", "<=", new Date()), 10);
             const activitySnap = await getDocs(q);
             activityFeedList.innerHTML = '';
             if (activitySnap.empty) {
@@ -400,18 +362,17 @@ async function carregarDashboard() {
                     <span class="activity-time">${act.time_string}</span>`;
                 activityFeedList.appendChild(li);
             });
-        } catch (e) { console.error("Erro ao carregar Atividades:", e); }
+        } catch (e) { console.error(e); }
     }
 }
 
-// --- CARREGA RELATÓRIO VENDAS ---
 async function carregarRelatorioVendas() {
     const salesReportBody = document.getElementById('sales-report-body');
     if (!salesReportBody) return;
     const empresaId = getEmpresaId();
     const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
     try {
-        const querySnapshot = await getDocs(fechamentosRef); // TODO: Ordenar
+        const querySnapshot = await getDocs(fechamentosRef);
         salesReportBody.innerHTML = '';
         if (querySnapshot.empty) {
             salesReportBody.innerHTML = '<tr><td colspan="5">Nenhum fechamento registrado.</td></tr>';
@@ -432,7 +393,6 @@ async function carregarRelatorioVendas() {
     } catch (e) { console.error(e); }
 }
 
-// --- CARREGA RELATÓRIO ESTOQUE BAIXO ---
 async function carregarEstoqueBaixo() {
     const stockLowReportBody = document.getElementById('stock-low-report-body');
     if (!stockLowReportBody) return;
@@ -457,7 +417,6 @@ async function carregarEstoqueBaixo() {
     } catch (e) { console.error(e); }
 }
 
-// --- CARREGA RELATÓRIO INVENTÁRIO ---
 async function carregarInventario() {
     const inventoryReportBody = document.getElementById('inventory-report-body');
     if (!inventoryReportBody) return;
@@ -483,14 +442,13 @@ async function carregarInventario() {
     } catch (e) { console.error(e); }
 }
 
-// --- CARREGA RELATÓRIO PERDAS ---
 async function carregarPerdas() {
     const lossesReportBody = document.getElementById('losses-report-body');
     if (!lossesReportBody) return;
     const empresaId = getEmpresaId();
     const perdasRef = collection(db, "empresas", empresaId, "perdas");
     try {
-        const querySnapshot = await getDocs(perdasRef); // TODO: Ordenar
+        const querySnapshot = await getDocs(perdasRef);
         lossesReportBody.innerHTML = '';
         let totalPerdas = 0;
         querySnapshot.forEach(docSnap => {
@@ -510,12 +468,10 @@ async function carregarPerdas() {
     } catch (e) { console.error(e); }
 }
 
-// --- CARREGA CONFIGURAÇÕES (Perfis e Mercado) ---
 async function carregarGerenciarPerfis() {
     const formConfigMercado = document.getElementById('form-config-mercado');
     const profileList = document.getElementById('profile-list');
     if (!formConfigMercado && !profileList) return;
-    
     const empresaId = getEmpresaId();
     if (!empresaId) return;
 
@@ -529,7 +485,7 @@ async function carregarGerenciarPerfis() {
                 document.getElementById('cnpj').value = config.cnpj || '';
                 document.getElementById('estoque-minimo').value = config.estoqueMinimoPadrao || 10;
             }
-        } catch (e) { console.error("Erro ao carregar config do mercado:", e); }
+        } catch (e) { console.error(e); }
     }
     if (profileList) {
         try {
@@ -555,17 +511,13 @@ async function carregarGerenciarPerfis() {
                     openModal({ type: 'perfil', id: perfilId });
                 });
             });
-        } catch (e) { console.error("Erro ao carregar lista de perfis:", e); }
+        } catch (e) { console.error(e); }
     }
 }
 
-// --- FORM EDITAR PERFIL ---
-let fotoBase64 = null; // Globais para a página
-let fotoAtualURL = null;
 async function carregarPerfilParaEditar() {
     const formEditPerfil = document.getElementById('form-edit-perfil');
     if (!formEditPerfil) return;
-    
     const preview = document.getElementById('profile-pic-preview');
     const nomeInput = document.getElementById('nome-perfil');
     const urlParams = new URLSearchParams(window.location.search);
@@ -588,37 +540,11 @@ async function carregarPerfilParaEditar() {
         }
     } catch (e) { alert('Erro: ' + e.message); }
 }
-function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                let width = img.width, height = img.height;
-                if (width > height) {
-                    if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-                } else {
-                    if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width; canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
-            };
-            img.onerror = (e) => reject(e);
-            img.src = event.target.result;
-        };
-        reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(file);
-    });
-}
 
-// --- PESQUISA GLOBAL ---
 function setupGlobalSearch() {
     const globalSearchInput = document.getElementById('global-search-input');
     const globalSearchResults = document.getElementById('global-search-results');
     if (!globalSearchInput) return;
-    
     const paginasDoSite = [
         { nome: 'Dashboard', href: 'dashboard.html', icone: 'fas fa-home' },
         { nome: 'Produtos', href: 'produtos.html', icone: 'fas fa-box' },
@@ -633,7 +559,6 @@ function setupGlobalSearch() {
         { nome: 'Relatório: Perdas', href: 'relatorios-perdas.html', icone: 'fas fa-arrow-down' },
         { nome: 'Configurações', href: 'configuracoes.html', icone: 'fas fa-cog' }
     ];
-
     globalSearchInput.addEventListener('keyup', (e) => {
         const termo = e.target.value.toLowerCase();
         if (termo.length < 2) return globalSearchResults.style.display = 'none';
@@ -661,13 +586,12 @@ function setupGlobalSearch() {
 
 
 /* * =====================================
- * PONTO DE ENTRADA ÚNICO (Substitui auth-guard.js)
+ * PONTO DE ENTRADA ÚNICO (O "Guarda")
  * ===================================== */
 
 const currentPage = window.location.pathname.split('/').pop() || 'index.html';
 const paginasDeLogin = ['index.html', 'cadastro.html'];
 
-// Este listener AGORA controla toda a aplicação
 onAuthStateChanged(auth, (user) => {
     
     const currentProfile = localStorage.getItem('currentProfile');
@@ -679,297 +603,31 @@ onAuthStateChanged(auth, (user) => {
         // REGRA 2: Logado, mas sem perfil (e não está na tela de perfis/config)
         if (!currentProfile && currentPage !== 'perfis.html' && currentPage !== 'configuracoes.html' && currentPage !== 'editar-perfil.html') {
             window.location.href = 'perfis.html';
-            return; // Para a execução para evitar que o resto rode
+            return;
         }
 
         // REGRA 3: Logado E com perfil (ou na tela de perfis), mas vendo o login
         if (paginasDeLogin.includes(currentPage)) {
-             // Se estiver na tela de login mas já tiver perfil, vai pro dashboard
-             // Se estiver na tela de login e não tiver perfil, vai pra perfis.html (Regra 2)
             window.location.href = currentProfile ? 'dashboard.html' : 'perfis.html';
-            return; // Para a execução
+            return;
         }
 
         // --- USUÁRIO LOGADO E AUTORIZADO A ESTAR AQUI ---
-        // Executa as funções da página específica
-        
-        // Funções Globais (rodam em todas as páginas internas)
+        // Roda todas as funções de carregamento. Elas vão verificar
+        // se os elementos HTML necessários existem antes de executar.
         carregarDadosGlobaisUsuario();
         setupGlobalSearch();
         carregarCategorias(); // (Precisa rodar em todo lado para os dropdowns)
-
-        // Funções Específicas da Página
-        carregarPerfis(); // (só roda se achar o #profile-grid)
-        carregarDashboard(); // (só roda se achar o .stats-grid)
-        carregarProdutos(); // (só roda se achar o #product-table-body)
-        carregarGerenciarPerfis(); // (só roda se achar o #profile-list)
-        carregarProdutoParaEditar(); // (só roda se achar o #form-edit-product)
-        carregarPerfilParaEditar(); // (só roda se achar o #form-edit-perfil)
-
-        // Relatórios (só rodam se acharem o <tbody> específico)
+        carregarPerfis();
+        carregarDashboard();
+        carregarProdutos();
+        carregarGerenciarPerfis();
+        carregarProdutoParaEditar();
+        carregarPerfilParaEditar();
         carregarRelatorioVendas();
         carregarEstoqueBaixo();
         carregarInventario();
         carregarPerdas();
-
-        // Adiciona listeners aos formulários (só rodam se acharem o form)
-        // (Formulários de Login/Cadastro não rodam aqui)
-        
-        // Form Adicionar Categoria
-        const formAddCategory = document.getElementById('form-add-categoria');
-        if (formAddCategory) {
-            formAddCategory.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const categoryNameInput = document.getElementById('nome-categoria');
-                const categoryName = categoryNameInput.value.trim();
-                const empresaId = getEmpresaId();
-                if (!categoryName || !empresaId) return;
-                try {
-                    const categoriasRef = collection(db, "empresas", empresaId, "categorias");
-                    await addDoc(categoriasRef, { nome: categoryName });
-                    await logActivity('fas fa-tags', 'gray', 'Nova Categoria', `A categoria "${categoryName}" foi criada.`);
-                    categoryNameInput.value = '';
-                    carregarCategorias();
-                } catch (e) { alert(`Erro: ${e.message}`); }
-            });
-        }
-        
-        // Form Adicionar Produto
-        const formAddProduct = document.getElementById('form-add-product');
-        if (formAddProduct) {
-            formAddProduct.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const sku = document.getElementById('sku-produto').value;
-                if (!sku) return alert("O Código (SKU) é obrigatório!");
-                const novoProduto = {
-                    nome: document.getElementById('nome-produto').value, sku: sku,
-                    categoria_nome: document.getElementById('categoria-produto').value,
-                    custo: parseFloat(document.getElementById('preco-custo').value) || 0,
-                    venda: parseFloat(document.getElementById('preco-venda').value) || 0,
-                    qtd: parseInt(document.getElementById('qtd-inicial').value) || 0,
-                    vencimento: document.getElementById('data-vencimento').value || null,
-                    estoque_minimo: parseInt(document.getElementById('estoque-minimo').value) || 10,
-                    createdAt: serverTimestamp()
-                };
-                try {
-                    const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
-                    const docSnap = await getDoc(produtoRef);
-                    if (docSnap.exists()) throw new Error(`O SKU "${sku}" já está cadastrado.`);
-                    await setDoc(produtoRef, novoProduto);
-                    await logActivity('fas fa-box', 'blue', 'Novo Produto', `"${novoProduto.nome}" (SKU: ${sku}) foi cadastrado.`);
-                    alert('Produto cadastrado com sucesso!');
-                    window.location.href = 'produtos.html';
-                } catch (e) { alert(`Erro: ${e.message}`); }
-            });
-        }
-
-        // Form Editar Produto
-        const formEditProduct = document.getElementById('form-edit-product');
-        if (formEditProduct) {
-            formEditProduct.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const urlParams = new URLSearchParams(window.location.search);
-                const skuParaEditar = urlParams.get('sku');
-                const empresaId = getEmpresaId();
-                const produtoRef = doc(db, "empresas", empresaId, "produtos", skuParaEditar);
-                const produtoAtualizado = {
-                    nome: document.getElementById('nome-produto').value,
-                    categoria_nome: document.getElementById('categoria-produto').value,
-                    custo: parseFloat(document.getElementById('preco-custo').value) || 0,
-                    venda: parseFloat(document.getElementById('preco-venda').value) || 0,
-                    qtd: parseInt(document.getElementById('qtd-inicial').value) || 0,
-                    vencimento: document.getElementById('data-vencimento').value || null,
-                    estoque_minimo: parseInt(document.getElementById('estoque-minimo').value) || 10
-                };
-                try {
-                    await updateDoc(produtoRef, produtoAtualizado);
-                    await logActivity('fas fa-pencil-alt', 'blue', 'Produto Editado', `"${produtoAtualizado.nome}" (SKU: ${skuParaEditar}) foi atualizado.`);
-                    alert('Produto atualizado com sucesso!');
-                    window.location.href = 'produtos.html';
-                } catch (e) { alert(`Erro ao salvar: ${e.message}`); }
-            });
-        }
-        
-        // Filtros de Produto
-        const filtroBuscaInput = document.getElementById('filtro-busca');
-        const filtroCategoriaSelect = document.getElementById('filtro-categoria');
-        if (filtroBuscaInput) filtroBuscaInput.addEventListener('keyup', aplicarFiltrosDeProduto);
-        if (filtroCategoriaSelect) filtroCategoriaSelect.addEventListener('change', aplicarFiltrosDeProduto);
-        
-        // Form Registrar Entrada
-        const formEntrada = document.getElementById('form-add-entrada');
-        if (formEntrada) {
-            formEntrada.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const sku = document.getElementById('produto-sku-selecionado').value;
-                const qtd = parseInt(document.getElementById('quantidade').value) || 0;
-                if (!sku || qtd <= 0) return alert('Selecione um produto e quantidade válida.');
-                try {
-                    const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
-                    await updateDoc(produtoRef, { qtd: increment(qtd) });
-                    await logActivity('fas fa-arrow-down', 'green', 'Entrada de Estoque', `+${qtd} un. de "${document.getElementById('buscar-produto').value}" (SKU: ${sku})`);
-                    alert(`Entrada registrada!`);
-                    window.location.href = 'produtos.html';
-                } catch (e) { alert(`Erro: ${e.message}`); }
-            });
-        }
-        
-        // Form Registrar Saída
-        const formSaida = document.getElementById('form-add-saida');
-        if (formSaida) {
-            formSaida.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const sku = document.getElementById('produto-sku-selecionado').value;
-                const qtd = parseInt(document.getElementById('quantidade-saida').value) || 0;
-                const motivo = document.getElementById('motivo-saida').value;
-                if (!sku || qtd <= 0 || !motivo) return alert('Selecione produto, quantidade e motivo.');
-                const produto = cacheProdutos.find(p => p.sku === sku);
-                if (!produto) return alert('Erro: Produto não encontrado.');
-                if (qtd > produto.qtd) return alert(`Erro: Estoque atual (${produto.qtd}) insuficiente.`);
-                const custoTotalPerda = (produto.custo || 0) * qtd;
-                try {
-                    const batch = writeBatch(db);
-                    const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
-                    batch.update(produtoRef, { qtd: increment(-qtd) });
-                    const perdasRef = collection(db, "empresas", empresaId, "perdas");
-                    batch.set(doc(perdasRef), {
-                        sku: sku, nome_produto: produto.nome, qtd: qtd, motivo: motivo,
-                        observacao: document.getElementById('observacao').value,
-                        custo_total: custoTotalPerda, data_perda: serverTimestamp()
-                    });
-                    await batch.commit();
-                    await logActivity('fas fa-arrow-up', 'red', `Saída (${motivo})`, `-${qtd} un. de "${produto.nome}"`);
-                    alert(`Saída registrada!`);
-                    window.location.href = 'produtos.html';
-                } catch (e) { alert(`Erro: ${e.message}`); }
-            });
-        }
-        
-        // Form Fechamento de Caixa
-        const formFechamento = document.getElementById('form-fechamento');
-        if (formFechamento) {
-            const dataField = document.getElementById('data-fechamento');
-            if(dataField && !dataField.value) { // Preenche a data se estiver vazia
-                dataField.value = new Date().toISOString().split('T')[0];
-            }
-            formFechamento.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const dataID = document.getElementById('data-fechamento').value;
-                if (!dataID) return alert("Data inválida!");
-                const fechamento = {
-                    dinheiro: parseFloat(document.getElementById('total-dinheiro').value) || 0,
-                    cartao: parseFloat(document.getElementById('total-cartao').value) || 0,
-                    pix: parseFloat(document.getElementById('total-pix').value) || 0,
-                    data_fechamento: dataID,
-                    timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
-                };
-                fechamento.total = fechamento.dinheiro + fechamento.cartao + fechamento.pix;
-                try {
-                    const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
-                    const docSnap = await getDoc(fechamentoRef);
-                    if(docSnap.exists() && !confirm("O caixa para esta data já foi fechado. Deseja sobrescrever?")) return;
-                    await setDoc(fechamentoRef, fechamento);
-                    await logActivity('fas fa-wallet', 'yellow', 'Fechamento de Caixa', `Caixa de ${dataID} fechado com R$ ${fechamento.total.toFixed(2)}.`);
-                    alert('Fechamento salvo! Total: R$ ' + fechamento.total.toFixed(2));
-                    window.location.href = 'dashboard.html';
-                } catch (e) { alert(`Erro: ${e.message}`); }
-            });
-        }
-        
-        // Form Configurações do Mercado
-        const formConfigMercado = document.getElementById('form-config-mercado');
-        if (formConfigMercado) {
-            formConfigMercado.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const empresaRef = doc(db, "empresas", empresaId);
-                const config = {
-                    nomeMercado: document.getElementById('nome-mercado').value,
-                    cnpj: document.getElementById('cnpj').value,
-                    estoqueMinimoPadrao: parseInt(document.getElementById('estoque-minimo').value) || 10
-                };
-                try {
-                    await updateDoc(empresaRef, config);
-                    alert('Configurações salvas!');
-                } catch (e) { alert('Erro ao salvar: ' + e.message); }
-            });
-        }
-        
-        // Form Adicionar Perfil
-        const formAddPerfil = document.getElementById('form-add-perfil');
-        if (formAddPerfil) {
-            formAddPerfil.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const input = document.getElementById('nome-perfil');
-                const nome = input.value.trim();
-                if (!nome) return;
-                try {
-                    const perfilRef = doc(db, "empresas", empresaId, "perfis", nome);
-                    const docSnap = await getDoc(perfilRef);
-                    if(docSnap.exists()) return alert("Erro: Já existe um perfil com este nome.");
-                    await setDoc(perfilRef, { nome: nome, foto_perfil: PLACEHOLDER_IMG });
-                    await logActivity('fas fa-user-plus', 'blue', 'Novo Perfil', `O perfil "${nome}" foi criado.`);
-                    input.value = '';
-                    carregarGerenciarPerfis();
-                } catch (e) { alert('Erro: ' + e.message); }
-            });
-        }
-
-        // Form Editar Perfil
-        const formEditPerfil = document.getElementById('form-edit-perfil');
-        if (formEditPerfil) {
-            const fotoInput = document.getElementById('profile-pic-input');
-            const removeBtn = document.getElementById('profile-pic-remove');
-            const preview = document.getElementById('profile-pic-preview');
-            
-            fotoInput.addEventListener('change', async (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                try {
-                    fotoBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
-                    preview.src = fotoBase64;
-                } catch (e) { alert('Erro ao processar imagem.'); }
-            });
-            removeBtn.addEventListener('click', () => {
-                preview.src = PLACEHOLDER_IMG;
-                fotoBase64 = "REMOVER";
-                fotoInput.value = null;
-            });
-            formEditPerfil.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const empresaId = getEmpresaId();
-                const urlParams = new URLSearchParams(window.location.search);
-                const perfilId = urlParams.get('id');
-                const nomeNovo = document.getElementById('nome-perfil').value.trim();
-                
-                if (nomeNovo !== perfilId) {
-                   return alert("Erro: Mudar o nome do perfil não é permitido.");
-                }
-                try {
-                    let urlParaSalvar = fotoAtualURL; // (definido em carregarPerfilParaEditar)
-                    if (fotoBase64 && fotoBase64 !== "REMOVER") {
-                        const storageRef = ref(storage, `empresas/${empresaId}/perfis/${perfilId}.jpg`);
-                        const snapshot = await uploadString(storageRef, fotoBase64, 'data_url');
-                        urlParaSalvar = await getDownloadURL(snapshot.ref);
-                    } else if (fotoBase64 === "REMOVER") {
-                        urlParaSalvar = PLACEHOLDER_IMG;
-                        if (fotoAtualURL && fotoAtualURL.includes('firebasestorage')) {
-                            try { await deleteObject(ref(storage, fotoAtualURL)); } catch(e) { console.warn("Foto antiga não existia", e); }
-                        }
-                    }
-                    const perfilRef = doc(db, "empresas", empresaId, "perfis", perfilId);
-                    await updateDoc(perfilRef, { nome: nomeNovo, foto_perfil: urlParaSalvar });
-                    await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado.`);
-                    alert('Perfil salvo!');
-                    window.location.href = 'configuracoes.html';
-                } catch (e) { alert('Erro ao salvar: ' + e.message); }
-            });
-        }
 
     } else {
         // --- USUÁRIO NÃO ESTÁ LOGADO ---
@@ -981,6 +639,372 @@ onAuthStateChanged(auth, (user) => {
             alert('Você precisa estar logado para acessar esta página.');
             window.location.href = 'index.html';
         }
-        // Se não estiver logado E ESTIVER na pág. de login, não faz nada (deixa ele ver)
+        // Se não estiver logado E ESTIVER na pág. de login, não faz nada
     }
 });
+
+
+/* * =====================================
+ * LISTENERS DE FORMULÁRIO (Separados do Auth)
+ * ===================================== */
+
+// --- FORMULÁRIOS DE LOGIN/CADASTRO ---
+// (Estes funcionam mesmo se o usuário estiver deslogado)
+
+const formCadastro = document.getElementById('form-cadastro');
+if (formCadastro) {
+    formCadastro.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const email = document.getElementById('email').value;
+        const senha = document.getElementById('senha').value;
+        const confirmaSenha = document.getElementById('confirma-senha').value;
+
+        if (senha !== confirmaSenha) {
+            alert("As senhas não conferem!");
+            return;
+        }
+        if (senha.length < 6) {
+             alert("A senha deve ter no mínimo 6 caracteres.");
+             return;
+        }
+
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
+            const user = userCredential.user;
+            const batch = writeBatch(db);
+
+            const empresaDocRef = doc(db, "empresas", user.uid);
+            batch.set(empresaDocRef, {
+                adminEmail: user.email,
+                createdAt: serverTimestamp(),
+                nomeMercado: "Meu Mercado",
+                estoqueMinimoPadrao: 10
+            });
+            const perfilAdminRef = doc(db, "empresas", user.uid, "perfis", "Admin");
+            batch.set(perfilAdminRef, {
+                nome: "Admin",
+                foto_perfil: PLACEHOLDER_IMG
+            });
+            await batch.commit();
+            alert(`Conta criada com sucesso para ${user.email}!`);
+            window.location.href = 'index.html';
+
+        } catch (error) {
+            if (error.code === 'auth/email-already-in-use') {
+                alert("Erro: Este email já está em uso.");
+            } else {
+                alert("Erro ao criar conta: " + error.message);
+            }
+        }
+    });
+}
+
+const loginForm = document.getElementById('form-login');
+if (loginForm) {
+    loginForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const email = document.getElementById('email').value;
+        const senha = document.getElementById('senha').value;
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, senha);
+            localStorage.setItem('empresaId', userCredential.user.uid);
+            localStorage.removeItem('currentProfile'); // Força a seleção de perfil
+            window.location.href = 'perfis.html';
+        } catch (error) {
+            alert("Erro: Email ou senha incorretos.");
+        }
+    });
+}
+
+
+// --- FORMULÁRIOS INTERNOS (Só adiciona listeners se o ID existir) ---
+
+const formAddCategory = document.getElementById('form-add-categoria');
+if (formAddCategory) {
+    formAddCategory.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const categoryNameInput = document.getElementById('nome-categoria');
+        const categoryName = categoryNameInput.value.trim();
+        const empresaId = getEmpresaId();
+        if (!categoryName || !empresaId) return;
+        try {
+            const categoriasRef = collection(db, "empresas", empresaId, "categorias");
+            await addDoc(categoriasRef, { nome: categoryName });
+            await logActivity('fas fa-tags', 'gray', 'Nova Categoria', `A categoria "${categoryName}" foi criada.`);
+            categoryNameInput.value = '';
+            carregarCategorias();
+        } catch (e) { alert(`Erro: ${e.message}`); }
+    });
+}
+
+const formAddProduct = document.getElementById('form-add-product');
+if (formAddProduct) {
+    formAddProduct.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const sku = document.getElementById('sku-produto').value;
+        if (!sku) return alert("O Código (SKU) é obrigatório!");
+        const novoProduto = {
+            nome: document.getElementById('nome-produto').value, sku: sku,
+            categoria_nome: document.getElementById('categoria-produto').value,
+            custo: parseFloat(document.getElementById('preco-custo').value) || 0,
+            venda: parseFloat(document.getElementById('preco-venda').value) || 0,
+            qtd: parseInt(document.getElementById('qtd-inicial').value) || 0,
+            vencimento: document.getElementById('data-vencimento').value || null,
+            estoque_minimo: parseInt(document.getElementById('estoque-minimo').value) || 10,
+            createdAt: serverTimestamp()
+        };
+        try {
+            const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
+            const docSnap = await getDoc(produtoRef);
+            if (docSnap.exists()) throw new Error(`O SKU "${sku}" já está cadastrado.`);
+            await setDoc(produtoRef, novoProduto);
+            await logActivity('fas fa-box', 'blue', 'Novo Produto', `"${novoProduto.nome}" (SKU: ${sku}) foi cadastrado.`);
+            alert('Produto cadastrado com sucesso!');
+            window.location.href = 'produtos.html';
+        } catch (e) { alert(`Erro: ${e.message}`); }
+    });
+}
+
+const formEditProduct = document.getElementById('form-edit-product');
+if (formEditProduct) {
+    formEditProduct.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const urlParams = new URLSearchParams(window.location.search);
+        const skuParaEditar = urlParams.get('sku');
+        const empresaId = getEmpresaId();
+        const produtoRef = doc(db, "empresas", empresaId, "produtos", skuParaEditar);
+        const produtoAtualizado = {
+            nome: document.getElementById('nome-produto').value,
+            categoria_nome: document.getElementById('categoria-produto').value,
+            custo: parseFloat(document.getElementById('preco-custo').value) || 0,
+            venda: parseFloat(document.getElementById('preco-venda').value) || 0,
+            qtd: parseInt(document.getElementById('qtd-inicial').value) || 0,
+            vencimento: document.getElementById('data-vencimento').value || null,
+            estoque_minimo: parseInt(document.getElementById('estoque-minimo').value) || 10
+        };
+        try {
+            await updateDoc(produtoRef, produtoAtualizado);
+            await logActivity('fas fa-pencil-alt', 'blue', 'Produto Editado', `"${produtoAtualizado.nome}" (SKU: ${skuParaEditar}) foi atualizado.`);
+            alert('Produto atualizado com sucesso!');
+            window.location.href = 'produtos.html';
+        } catch (e) { alert(`Erro ao salvar: ${e.message}`); }
+    });
+}
+
+const filtroBuscaInput = document.getElementById('filtro-busca');
+const filtroCategoriaSelect = document.getElementById('filtro-categoria');
+if (filtroBuscaInput) filtroBuscaInput.addEventListener('keyup', aplicarFiltrosDeProduto);
+if (filtroCategoriaSelect) filtroCategoriaSelect.addEventListener('change', aplicarFiltrosDeProduto);
+
+const formEntrada = document.getElementById('form-add-entrada');
+if (formEntrada) {
+    formEntrada.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const sku = document.getElementById('produto-sku-selecionado').value;
+        const qtd = parseInt(document.getElementById('quantidade').value) || 0;
+        if (!sku || qtd <= 0) return alert('Selecione um produto e quantidade válida.');
+        try {
+            const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
+            await updateDoc(produtoRef, { qtd: increment(qtd) });
+            await logActivity('fas fa-arrow-down', 'green', 'Entrada de Estoque', `+${qtd} un. de "${document.getElementById('buscar-produto').value}" (SKU: ${sku})`);
+            alert(`Entrada registrada!`);
+            window.location.href = 'produtos.html';
+        } catch (e) { alert(`Erro: ${e.message}`); }
+    });
+}
+
+const formSaida = document.getElementById('form-add-saida');
+if (formSaida) {
+    formSaida.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const sku = document.getElementById('produto-sku-selecionado').value;
+        const qtd = parseInt(document.getElementById('quantidade-saida').value) || 0;
+        const motivo = document.getElementById('motivo-saida').value;
+        if (!sku || qtd <= 0 || !motivo) return alert('Selecione produto, quantidade e motivo.');
+        const produto = cacheProdutos.find(p => p.sku === sku);
+        if (!produto) return alert('Erro: Produto não encontrado.');
+        if (qtd > produto.qtd) return alert(`Erro: Estoque atual (${produto.qtd}) insuficiente.`);
+        const custoTotalPerda = (produto.custo || 0) * qtd;
+        try {
+            const batch = writeBatch(db);
+            const produtoRef = doc(db, "empresas", empresaId, "produtos", sku);
+            batch.update(produtoRef, { qtd: increment(-qtd) });
+            const perdasRef = collection(db, "empresas", empresaId, "perdas");
+            batch.set(doc(perdasRef), {
+                sku: sku, nome_produto: produto.nome, qtd: qtd, motivo: motivo,
+                observacao: document.getElementById('observacao').value,
+                custo_total: custoTotalPerda, data_perda: serverTimestamp()
+            });
+            await batch.commit();
+            await logActivity('fas fa-arrow-up', 'red', `Saída (${motivo})`, `-${qtd} un. de "${produto.nome}"`);
+            alert(`Saída registrada!`);
+            window.location.href = 'produtos.html';
+        } catch (e) { alert(`Erro: ${e.message}`); }
+    });
+}
+
+const formFechamento = document.getElementById('form-fechamento');
+if (formFechamento) {
+    const dataField = document.getElementById('data-fechamento');
+    if(dataField && !dataField.value) {
+        dataField.value = new Date().toISOString().split('T')[0];
+    }
+    formFechamento.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const dataID = document.getElementById('data-fechamento').value;
+        if (!dataID) return alert("Data inválida!");
+        const fechamento = {
+            dinheiro: parseFloat(document.getElementById('total-dinheiro').value) || 0,
+            cartao: parseFloat(document.getElementById('total-cartao').value) || 0,
+            pix: parseFloat(document.getElementById('total-pix').value) || 0,
+            data_fechamento: dataID,
+            timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
+        };
+        fechamento.total = fechamento.dinheiro + fechamento.cartao + fechamento.pix;
+        try {
+            const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
+            const docSnap = await getDoc(fechamentoRef);
+            if(docSnap.exists() && !confirm("O caixa para esta data já foi fechado. Deseja sobrescrever?")) return;
+            await setDoc(fechamentoRef, fechamento);
+            await logActivity('fas fa-wallet', 'yellow', 'Fechamento de Caixa', `Caixa de ${dataID} fechado com R$ ${fechamento.total.toFixed(2)}.`);
+            alert('Fechamento salvo! Total: R$ ' + fechamento.total.toFixed(2));
+            window.location.href = 'dashboard.html';
+        } catch (e) { alert(`Erro: ${e.message}`); }
+    });
+}
+
+const formConfigMercado = document.getElementById('form-config-mercado');
+if (formConfigMercado) {
+    formConfigMercado.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const empresaRef = doc(db, "empresas", empresaId);
+        const config = {
+            nomeMercado: document.getElementById('nome-mercado').value,
+            cnpj: document.getElementById('cnpj').value,
+            estoqueMinimoPadrao: parseInt(document.getElementById('estoque-minimo').value) || 10
+        };
+        try {
+            await updateDoc(empresaRef, config);
+            alert('Configurações salvas!');
+        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    });
+}
+
+const formAddPerfil = document.getElementById('form-add-perfil');
+if (formAddPerfil) {
+    formAddPerfil.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const input = document.getElementById('nome-perfil');
+        const nome = input.value.trim();
+        if (!nome) return;
+        try {
+            const perfilRef = doc(db, "empresas", empresaId, "perfis", nome);
+            const docSnap = await getDoc(perfilRef);
+            if(docSnap.exists()) return alert("Erro: Já existe um perfil com este nome.");
+            await setDoc(perfilRef, { nome: nome, foto_perfil: PLACEHOLDER_IMG });
+            await logActivity('fas fa-user-plus', 'blue', 'Novo Perfil', `O perfil "${nome}" foi criado.`);
+            input.value = '';
+            carregarGerenciarPerfis();
+        } catch (e) { alert('Erro: ' + e.message); }
+    });
+}
+
+const formEditPerfil = document.getElementById('form-edit-perfil');
+if (formEditPerfil) {
+    const fotoInput = document.getElementById('profile-pic-input');
+    const removeBtn = document.getElementById('profile-pic-remove');
+    const preview = document.getElementById('profile-pic-preview');
+    
+    fotoInput.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+            fotoBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
+            preview.src = fotoBase64;
+        } catch (e) { alert('Erro ao processar imagem.'); }
+    });
+    removeBtn.addEventListener('click', () => {
+        preview.src = PLACEHOLDER_IMG;
+        fotoBase64 = "REMOVER";
+        fotoInput.value = null;
+    });
+    formEditPerfil.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const urlParams = new URLSearchParams(window.location.search);
+        const perfilId = urlParams.get('id');
+        const nomeNovo = document.getElementById('nome-perfil').value.trim();
+        
+        if (nomeNovo !== perfilId) {
+           return alert("Erro: Mudar o nome do perfil não é permitido.");
+        }
+        try {
+            let urlParaSalvar = fotoAtualURL; // (definido em carregarPerfilParaEditar)
+            if (fotoBase64 && fotoBase64 !== "REMOVER") {
+                const storageRef = ref(storage, `empresas/${empresaId}/perfis/${perfilId}.jpg`);
+                const snapshot = await uploadString(storageRef, fotoBase64, 'data_url');
+                urlParaSalvar = await getDownloadURL(snapshot.ref);
+            } else if (fotoBase64 === "REMOVER") {
+                urlParaSalvar = PLACEHOLDER_IMG;
+                if (fotoAtualURL && fotoAtualURL.includes('firebasestorage')) {
+                    try { await deleteObject(ref(storage, fotoAtualURL)); } catch(e) { console.warn("Foto antiga não existia", e); }
+                }
+            }
+            const perfilRef = doc(db, "empresas", empresaId, "perfis", perfilId);
+            await updateDoc(perfilRef, { nome: nomeNovo, foto_perfil: urlParaSalvar });
+            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado.`);
+            alert('Perfil salvo!');
+            window.location.href = 'configuracoes.html';
+        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    });
+}
+
+// Autocomplete (precisa ser inicializado)
+const searchInput = document.getElementById('buscar-produto');
+if (searchInput) {
+    const suggestionsBox = document.getElementById('suggestions-box');
+    searchInput.addEventListener('focus', async () => {
+        if (cacheProdutos.length === 0) {
+            const empresaId = getEmpresaId();
+            if (!empresaId) return;
+            const produtosRef = collection(db, "empresas", empresaId, "produtos");
+            const querySnapshot = await getDocs(produtosRef);
+            querySnapshot.forEach(docSnap => cacheProdutos.push(docSnap.data()));
+        }
+    });
+    searchInput.addEventListener('keyup', (e) => {
+        const termoBusca = searchInput.value.toLowerCase();
+        if (termoBusca.length < 1) return suggestionsBox.style.display = 'none';
+        const sugestoes = cacheProdutos.filter(p => p.nome.toLowerCase().includes(termoBusca) || p.sku.startsWith(termoBusca));
+        suggestionsBox.innerHTML = '';
+        if (sugestoes.length > 0) {
+            sugestoes.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.innerHTML = `<strong>${p.nome}</strong> <small>SKU: ${p.sku} (Qtd: ${p.qtd})</small>`;
+                item.addEventListener('click', () => {
+                    searchInput.value = p.nome;
+                    document.getElementById('produto-sku-selecionado').value = p.sku;
+                    document.getElementById('produto-qtd-atual').value = p.qtd;
+                    let dataFormatada = 'Sem vencimento';
+                    if (p.vencimento) {
+                        const partes = p.vencimento.split('T')[0].split('-');
+                        dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+                    }
+                    document.getElementById('produto-vencimento').value = dataFormatada;
+                    suggestionsBox.style.display = 'none';
+                });
+                suggestionsBox.appendChild(item);
+            });
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+    });
+}
