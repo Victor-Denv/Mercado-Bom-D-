@@ -1,5 +1,7 @@
 /* === app.js (Login e Cadastro - Versão Web CDN) === */
 
+
+
 // --- IMPORTS DO FIREBASE ---
 // Importa o 'auth' e 'db' do nosso config local
 import { auth, db } from './firebase-config.js'; 
@@ -12,10 +14,10 @@ import {
 
 import { 
     doc,
-    setDoc
+    setDoc,
+    collection,
+    getDocs
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-// --- FIM DOS IMPORTS ---
-
 
 // --- LÓGICA DE CADASTRO (form-cadastro) ---
 const formCadastro = document.getElementById('form-cadastro');
@@ -35,16 +37,22 @@ if (formCadastro) {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
-
-            const empresaDocRef = doc(db, "empresas", user.uid);
+const empresaDocRef = doc(db, "empresas", user.uid);
             await setDoc(empresaDocRef, {
                 adminEmail: user.email,
                 createdAt: new Date(),
                 nomeMercado: "Meu Mercado" 
             });
 
+            // (NOVO) Cria o perfil "Admin" padrão dentro da empresa
+            // Usamos o caminho "empresas/{id_da_empresa}/perfis/admin"
+            const perfilAdminRef = doc(db, "empresas", user.uid, "perfis", "admin");
+            await setDoc(perfilAdminRef, {
+                nome: "Admin",
+                foto_perfil: "https://via.placeholder.com/100" // Uma foto padrão
+            });
+
             alert(`Conta criada com sucesso para ${user.email}! Você será redirecionado para o login.`);
-            window.location.href = 'index.html'; 
 
         } catch (error) {
             if (error.code === 'auth/email-already-in-use') {
@@ -82,4 +90,60 @@ if (loginForm) {
             console.error("Erro de login:", error.message);
         }
     });
+}
+
+// --- LÓGICA DA PÁGINA DE PERFIS (NOVO) ---
+const profileGrid = document.getElementById('profile-grid');
+if (profileGrid) {
+    
+    async function carregarPerfis() {
+        // 1. Pega o ID da empresa que salvamos no login
+        const empresaId = localStorage.getItem('empresaId');
+        if (!empresaId) {
+            alert("Erro: ID da empresa não encontrado. Fazendo logout.");
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // 2. Define o caminho para a subcoleção "perfis"
+        const perfisRef = collection(db, "empresas", empresaId, "perfis");
+        
+        try {
+            // 3. Busca os documentos dentro de "perfis"
+            const querySnapshot = await getDocs(perfisRef);
+            
+            profileGrid.innerHTML = ''; // Limpa a área
+            
+            if (querySnapshot.empty) {
+                profileGrid.innerHTML = '<p>Nenhum perfil encontrado para esta empresa.</p>';
+                // (Você pode adicionar um link para 'configuracoes.html' aqui)
+            }
+
+            // 4. Cria os cards para cada perfil
+            querySnapshot.forEach((doc) => {
+                const perfil = doc.data();
+                
+                const card = document.createElement('div');
+                card.className = 'profile-card';
+                card.innerHTML = `
+                    <img src="${perfil.foto_perfil || 'https://via.placeholder.com/100'}" alt="${perfil.nome}" class="profile-card-pic" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 15px;">
+                    <span>${perfil.nome}</span>
+                `;
+                
+                // 5. Adiciona o clique para "entrar" no dashboard
+                card.addEventListener('click', () => {
+                    localStorage.setItem('currentProfile', perfil.nome);
+                    window.location.href = 'dashboard.html';
+                });
+                
+                profileGrid.appendChild(card);
+            });
+
+        } catch (error) {
+            console.error("Erro ao carregar perfis:", error);
+            profileGrid.innerHTML = '<p>Erro ao carregar perfis.</p>';
+        }
+    }
+    
+    carregarPerfis();
 }
