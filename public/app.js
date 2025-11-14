@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL - 13/11/2025 - CORREÇÃO DE SINTAXE) === */
+/* === app.js (VERSÃO FINAL SIMPLIFICADA SEM STORAGE/BASE64) === */
 
 // --- IMPORTS DO FIREBASE (CDN) ---
 import {
@@ -7,27 +7,22 @@ import {
     signOut,
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-
 import {
     doc, setDoc, getDoc, collection, getDocs, addDoc, deleteDoc, updateDoc,
     query, where, Timestamp, serverTimestamp, increment, writeBatch,
     orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-
-import {
-    ref, uploadString, getDownloadURL, deleteObject
-} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
+// ** FIREBASE STORAGE IMPORTS REMOVIDOS **
 
 // --- IMPORTS LOCAIS ---
-import { auth, db, storage } from './firebase-config.js';
+import { auth, db } from './firebase-config.js'; // Note: 'storage' foi removido daqui
 
 // --- CONSTANTES GLOBAIS ---
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 let cacheProdutos = [];
 let cacheCategorias = [];
-let deleteConfig = {}; // Para o modal
-let fotoBase64 = null; // Para editar perfil
-let fotoAtualURL = null; // Para editar perfil
+let deleteConfig = {}; 
+// ** fotoBase64 e fotoAtualURL foram removidos **
 
 
 /* * =====================================
@@ -54,36 +49,11 @@ async function logActivity(icon, color, title, description) {
         await addDoc(atividadesRef, newActivity);
     } catch (e) { console.error('Falha ao registrar atividade:', e.message); }
 }
-
-function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                let width = img.width, height = img.height;
-                if (width > height) {
-                    if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
-                } else {
-                    if (height > maxHeight) { width = Math.round((width * maxHeight) / height); height = maxHeight; }
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width; canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', quality));
-            };
-            img.onerror = (e) => reject(e);
-            img.src = event.target.result;
-        };
-        reader.onerror = (e) => reject(e);
-        reader.readAsDataURL(file);
-    });
-}
+// ** FUNÇÃO resizeAndEncodeImage REMOVIDA **
 
 
 /* * =====================================
  * FUNÇÕES DE CARREGAMENTO DE PÁGINA
- * (Definidas primeiro, chamadas depois pelo listener de auth)
  * ===================================== */
 
 async function carregarDadosGlobaisUsuario() {
@@ -105,7 +75,7 @@ async function carregarDadosGlobaisUsuario() {
             const perfilDocRef = doc(db, "empresas", empresaId, "perfis", currentProfileName);
             const docSnap = await getDoc(perfilDocRef);
             if (docSnap.exists()) {
-                headerProfilePic.src = docSnap.data().foto_perfil || 'https://via.placeholder.com/40';
+                headerProfilePic.src = docSnap.data().foto_perfil || PLACEHOLDER_IMG;
             }
         } catch (e) { console.error(e); }
     }
@@ -121,7 +91,7 @@ async function carregarDropdownPerfis() {
 
     const perfisRef = collection(db, "empresas", empresaId, "perfis");
     try {
-        const querySnapshot = await getDocs(perfisRef);
+        const querySnapshot = await getDocs(query(perfisRef, orderBy("nome", "asc")));
         profileDropdownList.innerHTML = ''; 
 
         if (querySnapshot.empty) {
@@ -133,7 +103,7 @@ async function carregarDropdownPerfis() {
             const link = document.createElement('a');
             link.href = "#"; 
             link.innerHTML = `
-                <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
+                <img src="${perfil.foto_perfil || PLACEHOLDER_IMG}" alt="${perfil.nome}" class="dropdown-avatar">
                 <span>${perfil.nome}</span>
                 ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
             `;
@@ -148,7 +118,6 @@ async function carregarDropdownPerfis() {
             profileDropdownList.appendChild(link);
         });
 
-        // Adiciona o link "Gerenciar" e "Sair"
         const divider = document.createElement('div');
         divider.style.borderTop = "1px solid var(--border-light)";
         divider.style.margin = "5px 0";
@@ -191,7 +160,7 @@ async function carregarPerfis() {
 
     const perfisRef = collection(db, "empresas", empresaId, "perfis");
     try {
-        const querySnapshot = await getDocs(perfisRef);
+        const querySnapshot = await getDocs(query(perfisRef, orderBy("nome", "asc")));
         profileGrid.innerHTML = '';
         if (querySnapshot.empty) {
             profileGrid.innerHTML = `<p>Nenhum perfil encontrado. <a href="configuracoes.html">Adicionar perfis</a></p>`;
@@ -235,7 +204,7 @@ async function carregarCategorias() {
 
     const categoriasRef = collection(db, "empresas", empresaId, "categorias");
     try {
-        const querySnapshot = await getDocs(categoriasRef);
+        const querySnapshot = await getDocs(query(categoriasRef, orderBy("nome", "asc")));
         cacheCategorias = [];
         if (categoryList) categoryList.innerHTML = ''; 
 
@@ -252,7 +221,7 @@ async function carregarCategorias() {
                 const li = document.createElement('li');
                 li.className = 'profile-item'; 
                 li.innerHTML = `
-                    <img src="https://via.placeholder.com/30" alt="cat" class="dropdown-avatar" style="opacity: 0.2; width: 20px; height: 20px;">
+                    <img src="${PLACEHOLDER_IMG}" alt="cat" class="dropdown-avatar" style="opacity: 0.2; width: 20px; height: 20px;">
                     <span>${categoria.nome}</span>
                     <button class="btn-action edit" style="visibility: hidden;"><i class="fas fa-pencil-alt"></i></button>
                     <button class="btn-action delete"><i class="fas fa-trash-alt"></i></button>
@@ -295,7 +264,7 @@ async function carregarProdutos() {
 
     const produtosRef = collection(db, "empresas", empresaId, "produtos");
     try {
-        const querySnapshot = await getDocs(produtosRef);
+        const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
         cacheProdutos = [];
         productTableBody.innerHTML = '';
         if (querySnapshot.empty) {
@@ -400,7 +369,7 @@ async function carregarDashboard() {
     const estoqueMinimoCard = statsGrid.querySelector('.stat-icon.red + .stat-info strong');
     try {
         const produtosRef = collection(db, "empresas", empresaId, "produtos");
-        const produtosSnap = await getDocs(produtosRef);
+        const produtosSnap = await getDocs(query(produtosRef, orderBy("nome", "asc")));
         let totalEstoqueBaixo = 0;
         produtosSnap.forEach(docSnap => {
             const p = docSnap.data();
@@ -410,7 +379,7 @@ async function carregarDashboard() {
         if (estoqueMinimoCard) estoqueMinimoCard.textContent = totalEstoqueBaixo;
 
         const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
-        const fechamentosSnap = await getDocs(fechamentosRef);
+        const fechamentosSnap = await getDocs(query(fechamentosRef, orderBy("timestamp", "desc")));
         
         // CORREÇÃO DE FUSO HORÁRIO
         const hoje = new Date();
@@ -493,7 +462,7 @@ async function carregarEstoqueBaixo() {
     const empresaId = getEmpresaId();
     const produtosRef = collection(db, "empresas", empresaId, "produtos");
     try {
-        const querySnapshot = await getDocs(produtosRef);
+        const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
         stockLowReportBody.innerHTML = '';
         let count = 0;
         querySnapshot.forEach(docSnap => {
@@ -517,7 +486,7 @@ async function carregarInventario() {
     const empresaId = getEmpresaId();
     const produtosRef = collection(db, "empresas", empresaId, "produtos");
     try {
-        const querySnapshot = await getDocs(produtosRef);
+        const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
         inventoryReportBody.innerHTML = '';
         let grandTotal = 0;
         querySnapshot.forEach(docSnap => {
@@ -584,7 +553,7 @@ async function carregarGerenciarPerfis() {
     if (profileList) {
         try {
             const perfisRef = collection(db, "empresas", empresaId, "perfis");
-            const querySnapshot = await getDocs(perfisRef);
+            const querySnapshot = await getDocs(query(perfisRef, orderBy("nome", "asc")));
             profileList.innerHTML = '';
             querySnapshot.forEach(docSnap => {
                 const perfil = docSnap.data();
@@ -632,7 +601,7 @@ async function carregarPerfilParaEditar() {
             fotoAtualURL = perfil.foto_perfil;
             if (perfil.nome === 'Admin') nomeInput.disabled = true;
         }
-    } catch (e) { alert('Erro: ' + e.message); }
+    } catch (e) { alert('Erro ao carregar dados do perfil.'); }
 }
 
 function setupGlobalSearch() {
@@ -708,7 +677,7 @@ onAuthStateChanged(auth, (user) => {
         carregarDadosGlobaisUsuario();
         carregarDropdownPerfis();
         setupGlobalSearch();
-        carregarCategorias();
+        carregarCategorias(); // (Precisa rodar em todo lado para os dropdowns)
         carregarPerfis();
         carregarDashboard();
         carregarProdutos();
@@ -808,7 +777,7 @@ if (profileDropdown) {
 const logoutButton = document.querySelector('.sidebar-footer a');
 if (logoutButton) {
     logoutButton.addEventListener('click', async (event) => {
-        event.preventDefault(); 
+        e.preventDefault(); 
         if (confirm('Você tem certeza que deseja sair?')) {
             try {
                 await signOut(auth);
@@ -842,6 +811,20 @@ if (modalBtnConfirm) {
                 docRef = doc(db, "empresas", empresaId, "produtos", deleteConfig.id);
                 logMessage = `Produto "${deleteConfig.nome || ''}" (SKU: ${deleteConfig.id}) foi removido.`;
             } else if (deleteConfig.type === 'perfil') {
+                // CORREÇÃO: Adiciona a lógica para apagar a foto do Storage
+                try {
+                    const perfilRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
+                    const perfilSnap = await getDoc(perfilRef);
+                    if (perfilSnap.exists()) {
+                        const fotoURL = perfilSnap.data().foto_perfil;
+                        if (fotoURL && fotoURL.includes('firebasestorage')) {
+                            await deleteObject(ref(storage, fotoURL));
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Não foi possível apagar a foto do perfil do Storage:", e);
+                }
+                // FIM DA CORREÇÃO
                 docRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
                 logMessage = `Perfil "${deleteConfig.id}" foi removido.`;
             } else {
@@ -1097,7 +1080,7 @@ if (formEditPerfil) {
            return alert("Erro: Mudar o nome do perfil não é permitido.");
         }
         try {
-            let urlParaSalvar = fotoAtualURL; // (definido em carregarPerfilParaEditar)
+            let urlParaSalvar = fotoAtualURL; 
             if (fotoBase64 && fotoBase64 !== "REMOVER") {
                 const storageRef = ref(storage, `empresas/${empresaId}/perfis/${perfilId}.jpg`);
                 const snapshot = await uploadString(storageRef, fotoBase64, 'data_url');
@@ -1126,12 +1109,12 @@ if (searchInput) {
             const empresaId = getEmpresaId();
             if (!empresaId) return;
             const produtosRef = collection(db, "empresas", empresaId, "produtos");
-            const querySnapshot = await getDocs(produtosRef);
+            const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
             querySnapshot.forEach(docSnap => cacheProdutos.push(docSnap.data()));
         }
     });
     searchInput.addEventListener('keyup', (e) => {
-        const termoBusca = searchInput.value.toLowerCase();
+        const termoBusca = e.target.value.toLowerCase();
         if (termoBusca.length < 1) return suggestionsBox.style.display = 'none';
         const sugestoes = cacheProdutos.filter(p => p.nome.toLowerCase().includes(termoBusca) || p.sku.startsWith(termoBusca));
         suggestionsBox.innerHTML = '';
@@ -1141,7 +1124,6 @@ if (searchInput) {
                 item.className = 'suggestion-item';
                 item.innerHTML = `<strong>${p.nome}</strong> <small>SKU: ${p.sku} (Qtd: ${p.qtd})</small>`;
                 item.addEventListener('click', () => {
-                    searchInput.value = p.nome;
                     document.getElementById('produto-sku-selecionado').value = p.sku;
                     document.getElementById('produto-qtd-atual').value = p.qtd;
                     let dataFormatada = 'Sem vencimento';
