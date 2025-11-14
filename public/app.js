@@ -365,7 +365,79 @@ async function carregarDashboard() {
         } catch (e) { console.error(e); }
     }
 }
+// --- CARREGA O DROPDOWN DE PERFIS (NOVO) ---
+async function carregarDropdownPerfis() {
+    const profileDropdownList = document.getElementById('profile-dropdown-list');
+    if (!profileDropdownList) return; // Só roda se o dropdown existir
 
+    const empresaId = getEmpresaId();
+    const currentProfileName = localStorage.getItem('currentProfile');
+    if (!empresaId) return;
+
+    const perfisRef = collection(db, "empresas", empresaId, "perfis");
+    try {
+        const querySnapshot = await getDocs(perfisRef);
+        profileDropdownList.innerHTML = ''; // Limpa o "Carregando..."
+
+        if (querySnapshot.empty) {
+            profileDropdownList.innerHTML = '<a href="configuracoes.html"><span>Adicionar Perfis</span></a>';
+        }
+
+        querySnapshot.forEach((doc) => {
+            const perfil = doc.data();
+            const link = document.createElement('a');
+            link.href = "#"; // É um link de ação
+            link.innerHTML = `
+                <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
+                <span>${perfil.nome}</span>
+                ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
+            `;
+            
+            // Adiciona o clique para TROCAR de perfil
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (perfil.nome !== currentProfileName) {
+                    localStorage.setItem('currentProfile', perfil.nome);
+                    window.location.reload(); // Recarrega a página com o novo perfil
+                }
+            });
+            profileDropdownList.appendChild(link);
+        });
+
+        // Adiciona o link "Gerenciar" e "Sair"
+        const divider = document.createElement('div');
+        divider.style.borderTop = "1px solid var(--border-light)";
+        divider.style.margin = "5px 0";
+        profileDropdownList.appendChild(divider);
+
+        const manageLink = document.createElement('a');
+        manageLink.href = "configuracoes.html";
+        manageLink.innerHTML = `<i class="fas fa-cog" style="margin-right: 8px;"></i> Gerenciar Perfis`;
+        profileDropdownList.appendChild(manageLink);
+
+        const logoutLink = document.createElement('a');
+        logoutLink.href = "#";
+        logoutLink.innerHTML = `<i class="fas fa-sign-out-alt" style="margin-right: 8px;"></i> Sair`;
+        logoutLink.addEventListener('click', async (e) => {
+             e.preventDefault();
+             if (confirm('Você tem certeza que deseja sair?')) {
+                try {
+                    await signOut(auth);
+                    localStorage.removeItem('empresaId');
+                    localStorage.removeItem('currentProfile');
+                    window.location.href = 'index.html';
+                } catch (error) {
+                    alert("Erro ao sair: " + error.message);
+                }
+            }
+        });
+        profileDropdownList.appendChild(logoutLink);
+
+    } catch (e) { 
+        console.error("Erro ao carregar dropdown de perfis:", e);
+        profileDropdownList.innerHTML = '<a href="#"><span>Erro ao carregar</span></a>';
+    }
+}
 async function carregarRelatorioVendas() {
     const salesReportBody = document.getElementById('sales-report-body');
     if (!salesReportBody) return;
@@ -628,6 +700,7 @@ onAuthStateChanged(auth, (user) => {
         carregarEstoqueBaixo();
         carregarInventario();
         carregarPerdas();
+        carregarDropdownPerfis();
 
     } else {
         // --- USUÁRIO NÃO ESTÁ LOGADO ---
@@ -1013,6 +1086,33 @@ if (searchInput) {
             suggestionsBox.style.display = 'block';
         } else {
             suggestionsBox.style.display = 'none';
+        }
+    });
+}
+
+// --- LISTENER DO DROPDOWN DE PERFIL (NOVO) ---
+const profileDropdown = document.getElementById('profile-dropdown');
+if (profileDropdown) {
+    const dropdownContent = document.getElementById('profile-dropdown-list');
+    
+    // Mostra/Esconde o menu ao clicar no container principal
+    profileDropdown.addEventListener('click', (event) => {
+        // Impede que clicar em um link dentro do dropdown o feche imediatamente
+        if (event.target.tagName === 'A' || event.target.closest('a')) {
+            return;
+        }
+        
+        // Alterna a exibição
+        const isShown = dropdownContent.style.display === 'block';
+        dropdownContent.style.display = isShown ? 'none' : 'block';
+        profileDropdown.classList.toggle('active', !isShown);
+    });
+
+    // Fecha se clicar fora
+    document.addEventListener('click', (event) => {
+        if (profileDropdown && !profileDropdown.contains(event.target)) {
+            dropdownContent.style.display = 'none';
+            profileDropdown.classList.remove('active');
         }
     });
 }
