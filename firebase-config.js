@@ -1,9 +1,9 @@
-// Importa as funções dos URLs COMPLETOS do Firebase
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Sua configuração original (está correta)
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDcFP57aFI_qcnFEHznI_Ux1yNqiyYF1I0",
   authDomain: "mercado-bom-d.firebaseapp.com",
@@ -13,9 +13,5 @@ const firebaseConfig = {
   appId: "1:728060272298:web:775a3cff88a195a9217ad3"
 };
 
-// Inicializa o Firebase
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// --- Nossas exportações "finais" ---
-export const auth = getAuth(app);
-export const db = getFirestore(app);
