@@ -1,4 +1,4 @@
-/* === app.js (Versão Inicial - Login e Cadastro) === */
+/* === app.js (Login e Cadastro) === */
 
 // --- IMPORTS DO FIREBASE ---
 // Importa o 'auth' e 'db' que configuramos no firebase-config.js
@@ -17,7 +17,7 @@ import {
 // --- FIM DOS IMPORTS ---
 
 
-// --- LÓGICA DE CADASTRO (NOVO) ---
+// --- LÓGICA DE CADASTRO (form-cadastro) ---
 const formCadastro = document.getElementById('form-cadastro');
 if (formCadastro) {
     formCadastro.addEventListener('submit', async (event) => {
@@ -38,9 +38,8 @@ if (formCadastro) {
             const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
 
-            // 3. (IMPORTANTE) Cria a "Empresa" no Firestore
-            // Vamos criar um documento no Firestore com o ID do usuário (user.uid)
-            // É aqui que garantimos que os dados de cada empresa fiquem separados
+            // 3. Cria a "Empresa" no Firestore
+            // O ID do usuário (user.uid) será usado como ID do documento da empresa
             const empresaDocRef = doc(db, "empresas", user.uid);
             await setDoc(empresaDocRef, {
                 adminEmail: user.email,
@@ -59,13 +58,14 @@ if (formCadastro) {
                 alert("Erro: A senha é muito fraca. (Mínimo 6 caracteres)");
             } else {
                 alert("Erro ao criar conta: " + error.message);
+                console.error("Erro de cadastro:", error);
             }
         }
     });
 }
 
 
-// --- LÓGICA DA PÁGINA DE LOGIN (VERSÃO FINAL) ---
+// --- LÓGICA DE LOGIN (form-login) ---
 const loginForm = document.getElementById('form-login');
 if (loginForm) {
     loginForm.addEventListener('submit', async function(event) {
@@ -78,15 +78,14 @@ if (loginForm) {
             const userCredential = await signInWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
 
-            // 2. (IMPORTANTE) Guarda o ID da empresa no localStorage
-            // O user.uid é o ID do usuário E o ID da empresa que criamos no cadastro
-            // Vamos usar isso em TODAS as outras telas
+            // 2. Guarda o ID da empresa no localStorage
+            // Este é o "crachá" que o auth-guard.js vai procurar
             localStorage.setItem('empresaId', user.uid); 
             
             // Limpa tokens antigos (se houver)
             localStorage.removeItem('userToken');
 
-            // 3. Redireciona para os perfis (como antes)
+            // 3. Redireciona para os perfis
             window.location.href = 'perfis.html';
 
         } catch (error) {
@@ -96,5 +95,3 @@ if (loginForm) {
         }
     });
 }
-
-// (Aqui iremos adicionar o resto das funções do seu app.js original, como carregar produtos, etc.)
