@@ -1,19 +1,19 @@
-/* === app.js (Login e Cadastro) === */
+/* === app.js (Login e Cadastro - Versão Web CDN) === */
 
 // --- IMPORTS DO FIREBASE ---
-// Importa o 'auth' e 'db' que configuramos no firebase-config.js
+// Importa o 'auth' e 'db' do nosso config local
 import { auth, db } from './firebase-config.js'; 
 
-// Importa as funções que vamos usar
+// Importa as funções dos URLs COMPLETOS do Firebase
 import { 
-    createUserWithEmailAndPassword, // Para criar contas
-    signInWithEmailAndPassword    // Para fazer login
-} from "firebase/auth";
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
 
 import { 
-    doc,    // Para referenciar um documento
-    setDoc  // Para criar um documento
-} from "firebase/firestore";
+    doc,
+    setDoc
+} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 // --- FIM DOS IMPORTS ---
 
 
@@ -27,31 +27,26 @@ if (formCadastro) {
         const senha = document.getElementById('senha').value;
         const confirmaSenha = document.getElementById('confirma-senha').value;
 
-        // 1. Verifica se as senhas são iguais
         if (senha !== confirmaSenha) {
             alert("As senhas não conferem!");
             return; 
         }
 
-        // 2. Tenta criar o usuário no Firebase Auth
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
 
-            // 3. Cria a "Empresa" no Firestore
-            // O ID do usuário (user.uid) será usado como ID do documento da empresa
             const empresaDocRef = doc(db, "empresas", user.uid);
             await setDoc(empresaDocRef, {
                 adminEmail: user.email,
                 createdAt: new Date(),
-                nomeMercado: "Meu Mercado" // Um nome padrão
+                nomeMercado: "Meu Mercado" 
             });
 
             alert(`Conta criada com sucesso para ${user.email}! Você será redirecionado para o login.`);
-            window.location.href = 'index.html'; // Manda para o login
+            window.location.href = 'index.html'; 
 
         } catch (error) {
-            // 4. Trata erros comuns
             if (error.code === 'auth/email-already-in-use') {
                 alert("Erro: Este email já está em uso.");
             } else if (error.code === 'auth/weak-password') {
@@ -74,22 +69,15 @@ if (loginForm) {
         const senha = document.getElementById('senha').value;
 
         try {
-            // 1. Tenta fazer o login com o Firebase Auth
             const userCredential = await signInWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
 
-            // 2. Guarda o ID da empresa no localStorage
-            // Este é o "crachá" que o auth-guard.js vai procurar
             localStorage.setItem('empresaId', user.uid); 
-            
-            // Limpa tokens antigos (se houver)
             localStorage.removeItem('userToken');
 
-            // 3. Redireciona para os perfis
             window.location.href = 'perfis.html';
 
         } catch (error) {
-            // 4. Trata erros de login
             alert("Erro: Email ou senha incorretos.");
             console.error("Erro de login:", error.message);
         }

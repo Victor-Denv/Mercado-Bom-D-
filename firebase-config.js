@@ -1,7 +1,7 @@
-// Importa as funções que precisamos
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth"; // Para Autenticação
-import { getFirestore } from "firebase/firestore"; // Para o Banco de Dados
+// Importa as funções dos URLs COMPLETOS do Firebase
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // Sua configuração original (está correta)
 const firebaseConfig = {
@@ -17,9 +17,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // --- Nossas exportações "finais" ---
-
-// Exporta o serviço de Autenticação para usarmos no app.js
 export const auth = getAuth(app);
-
-// Exporta o serviço do Firestore (banco de dados) para usarmos no app.js
 export const db = getFirestore(app);
