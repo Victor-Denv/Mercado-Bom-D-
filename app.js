@@ -6,6 +6,7 @@ const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 
 /* * =====================================
  * NOVA FUNÇÃO MÁGICA: REDIMENSIONAR IMAGEM
+ * (Isso converte a foto em texto para salvar no Firestore)
  * =====================================
  */
 function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
@@ -17,6 +18,7 @@ function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
                 let width = img.width;
                 let height = img.height;
 
+                // Calcula o redimensionamento
                 if (width > height) {
                     if (width > maxWidth) {
                         height = Math.round((height * maxWidth) / width);
@@ -62,15 +64,15 @@ async function carregarDadosGlobaisUsuario() {
     const headerProfilePic = document.getElementById('header-profile-pic');
     
     const currentProfileName = localStorage.getItem('currentProfile');
+    const empresaId = localStorage.getItem('empresaId');
+
+    if (!empresaId) return; // Não faz nada se não souber a empresa
     
     if (currentProfileName && headerProfileName) {
         headerProfileName.textContent = currentProfileName;
     }
 
     try {
-        const empresaId = localStorage.getItem('empresaId');
-        if (!empresaId) return; // Sai se não houver empresa logada
-        
         const snapshot = await db.collection('empresas').doc(empresaId).collection('perfis').get();
         const perfis = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const perfilAtivo = perfis.find(p => p.nome === currentProfileName);
@@ -117,6 +119,7 @@ async function carregarDadosGlobaisUsuario() {
         if (headerProfilePic) headerProfilePic.src = 'https://via.placeholder.com/40';
     }
 }
+// Roda em todas as páginas, exceto login, cadastro e perfis
 if (document.getElementById('header-profile-pic')) {
     carregarDadosGlobaisUsuario();
 }
@@ -146,8 +149,7 @@ if (profileDropdown) {
     });
 }
 
-
-// --- LÓGICA DE CRIAR CONTA (NOVO!) ---
+// --- LÓGICA DE CRIAR CONTA (cadastro.html) ---
 const formCadastro = document.getElementById('form-cadastro');
 if (formCadastro) {
     formCadastro.addEventListener('submit', async (event) => {
@@ -175,7 +177,7 @@ if (formCadastro) {
             });
 
             // Cria o perfil "Admin" padrão dentro da empresa
-            const perfilAdminRef = db.collection("empresas").doc(user.uid).collection("perfis").doc("admin");
+            const perfilAdminRef = db.collection("empresas").doc(user.uid).collection("perfis").doc(); // ID automático
             await perfilAdminRef.set({
                 nome: "Admin",
                 foto_perfil: PLACEHOLDER_IMG
@@ -197,7 +199,7 @@ if (formCadastro) {
     });
 }
 
-// --- LÓGICA DE LOGIN (COM FIREBASE) ---
+// --- LÓGICA DE LOGIN (index.html) ---
 const loginForm = document.getElementById('form-login');
 if (loginForm) {
     loginForm.addEventListener('submit', async function(event) {
@@ -251,7 +253,7 @@ async function logActivity(icon, color, title, description) {
     try {
         const perfil = localStorage.getItem('currentProfile') || 'Sistema'; 
         const empresaId = localStorage.getItem('empresaId');
-        if (!empresaId) return; // Não registra se não souber a empresa
+        if (!empresaId) return;
 
         const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const newActivity = { 
@@ -404,7 +406,6 @@ if (formAddProduct) {
         };
 
         try {
-            // Salva o produto DENTRO da coleção da empresa
             await db.collection('empresas').doc(empresaId).collection('produtos').doc(novoProduto.sku).set(novoProduto);
 
             await logActivity('fas fa-box', 'blue', 'Novo Produto Cadastrado', `"${novoProduto.nome}" foi adicionado ao sistema.`);
@@ -922,12 +923,12 @@ if (formEntrada) {
         event.preventDefault();
         const skuParaAtualizar = skuSelecionadoInput.value;
         const quantidadeParaAdicionar = parseInt(document.getElementById('quantidade').value) || 0;
+        const empresaId = localStorage.getItem('empresaId');
         if (!skuParaAtualizar || quantidadeParaAdicionar <= 0) {
             alert('Erro: Você deve selecionar um produto da lista e inserir uma quantidade válida.');
             return;
         }
         try {
-            const empresaId = localStorage.getItem('empresaId');
             const docRef = db.collection('empresas').doc(empresaId).collection('produtos').doc(skuParaAtualizar);
             
             await db.runTransaction(async (transaction) => {
@@ -1088,7 +1089,6 @@ if (formConfigMercado) {
             const doc = await db.collection('empresas').doc(empresaId).get();
             const config = doc.exists ? doc.data() : {};
             
-            // (No Firebase, não temos uma tabela 'usuarios' separada para o admin)
             document.getElementById('nome-completo').value = config.nomeAdmin || 'Admin';
             document.getElementById('email').value = config.adminEmail || auth.currentUser.email;
             if(config.profilePic) {
@@ -1107,6 +1107,7 @@ if (formConfigMercado) {
 
 const profilePicInput = document.getElementById('profile-pic-input');
 const profilePicRemoveBtn = document.getElementById('profile-pic-remove'); 
+// let fotoBase64 = null; // Removido, vamos ler direto do preview
 
 if (profilePicInput) {
     profilePicInput.addEventListener('change', async function(event) {
@@ -1118,7 +1119,7 @@ if (profilePicInput) {
             const resizedBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
             preview.src = resizedBase64;
             
-            if(formEditPerfil) { // Se estiver na pág de editar perfil
+            if(formEditPerfil) { 
                 fotoBase64 = resizedBase64;
             }
         } catch (e) {
@@ -1132,7 +1133,7 @@ if(profilePicRemoveBtn) {
         preview.src = PLACEHOLDER_IMG;
         profilePicInput.value = null; 
         
-        if(formEditPerfil) { // Se estiver na pág de editar perfil
+        if(formEditPerfil) { 
             fotoBase64 = null;
         }
     });
@@ -1347,7 +1348,7 @@ if (globalSearchInput) {
     });
 
     document.addEventListener('click', function(event) {
-        if (!globalSearchInput.contains(event.target)) {
+        if (globalSearchResults && !event.target.closest('.search-bar')) {
             globalSearchResults.style.display = 'none';
         }
     });
@@ -1386,6 +1387,7 @@ if (profileGrid) {
     carregarPerfis();
 }
 
+// Lógica de "Gerenciar Perfis" na página de Configurações
 const formAddPerfil = document.getElementById('form-add-perfil');
 const profileList = document.getElementById('profile-list');
 
@@ -1454,7 +1456,7 @@ if (formEditPerfil) {
     const perfilId = urlParams.get('id');
     const preview = document.getElementById('profile-pic-preview');
     const nomeInput = document.getElementById('nome-perfil');
-    let fotoBase64 = null; 
+    let fotoBase64 = null; // Guarda o NOVO texto da imagem
 
     // 1. Carrega os dados do perfil
     async function carregarPerfilParaEditar() {
@@ -1471,7 +1473,7 @@ if (formEditPerfil) {
             const perfil = doc.data();
             nomeInput.value = perfil.nome;
             preview.src = perfil.foto_perfil || PLACEHOLDER_IMG;
-            fotoBase64 = preview.src; 
+            // fotoBase64 = preview.src; // Não salva a foto antiga, espera uma nova
 
         } catch (e) {
             alert('Erro ao carregar perfil: ' + e.message);
@@ -1488,10 +1490,10 @@ if (formEditPerfil) {
                 // Redimensiona para 200x200, 80% qualidade
                 const resizedBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
                 preview.src = resizedBase64; 
-                fotoBase64 = resizedBase64; 
+                fotoBase64 = resizedBase64; // Salva o texto da NOVA imagem
             } catch (e) {
                 alert('Erro ao processar imagem. Tente JPG ou PNG.');
-                preview.src = fotoBase64 || PLACEHOLDER_IMG; // Volta para a foto antiga
+                // preview.src = fotoBase64 || PLACEHOLDER_IMG; // Volta para a foto antiga
             }
         }
     });
@@ -1517,10 +1519,21 @@ if (formEditPerfil) {
 
         try {
             const empresaId = localStorage.getItem('empresaId');
-            await db.collection('empresas').doc(empresaId).collection('perfis').doc(perfilId).update({
-                nome: nome,
-                foto_perfil: fotoBase64 // Envia o texto Base64 ou null
-            });
+            
+            // Se a fotoBase64 não foi alterada (continua null), 
+            // significa que o usuário não mexeu na foto.
+            // Não queremos salvar a foto antiga de novo, apenas o nome.
+            let dadosAtualizados = { nome: nome };
+            if (fotoBase64 !== null) { // Se o usuário selecionou uma nova foto...
+                dadosAtualizados.foto_perfil = fotoBase64;
+            } else if (preview.src.includes('placeholder.com')) {
+                // Se o usuário clicou em "Remover"
+                dadosAtualizados.foto_perfil = null;
+            }
+            // Se o usuário não mexeu na foto, a 'foto_perfil' nem é enviada,
+            // e o Firestore não mexe nela.
+
+            await db.collection('empresas').doc(empresaId).collection('perfis').doc(perfilId).update(dadosAtualizados);
             
             await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nome}" foi atualizado.`);
             alert('Perfil salvo com sucesso!');
