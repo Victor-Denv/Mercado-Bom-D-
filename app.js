@@ -16,7 +16,8 @@ import {
     doc,
     setDoc,
     collection,
-    getDocs
+    getDocs,
+    getDoc  // <-- ADICIONE ESTA LINHA
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // --- LÓGICA DE CADASTRO (form-cadastro) ---
@@ -202,25 +203,3 @@ async function carregarDadosGlobaisUsuario() {
     }
 }
 
-// 3. Precisamos importar o 'getDoc'
-// Vá ao TOPO do app.js e adicione 'getDoc' na lista de imports do firestore
-// ...
-// import { 
-//     doc,
-//     setDoc,
-//     collection,
-//     getDocs
-// } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-// ...
-// Adicione 'getDoc' assim:
-// import { 
-//     doc,
-//     setDoc,
-//     collection,
-//     getDocs,
-//     getDoc  // <-- ADICIONE ESTE
-// } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-// ...
-
-// 4. Executa a função em todas as páginas
-carregarDadosGlobaisUsuario();
