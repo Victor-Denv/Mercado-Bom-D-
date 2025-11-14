@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL CORRIGIDA E UNIFICADA) === */
+/* === app.js (VERSÃO FINAL - DEPLOY V2) === */
 
 // --- IMPORTS DO FIREBASE (CDN) ---
 import {
