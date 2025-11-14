@@ -147,3 +147,80 @@ if (profileGrid) {
     
     carregarPerfis();
 }
+
+// --- LÓGICA DE LOGOUT (BOTÃO SAIR) ---
+const logoutButton = document.querySelector('.sidebar-footer a');
+if (logoutButton) {
+    logoutButton.addEventListener('click', function(event) {
+        event.preventDefault(); 
+        if (confirm('Você tem certeza que deseja sair?')) {
+            // Limpa os "crachás" do localStorage
+            localStorage.removeItem('empresaId'); 
+            localStorage.removeItem('currentProfile'); 
+            
+            // Manda de volta para o login
+            window.location.href = 'index.html';
+        }
+    });
+}
+// --- LÓGICA DE CARREGAR DADOS GLOBAIS (NOME/FOTO ADMIN) ---
+async function carregarDadosGlobaisUsuario() {
+    const headerProfileName = document.getElementById('header-profile-name');
+    const headerProfilePic = document.getElementById('header-profile-pic');
+    
+    // 1. Pega os dados salvos no localStorage
+    const empresaId = localStorage.getItem('empresaId');
+    const currentProfileName = localStorage.getItem('currentProfile');
+
+    if (!headerProfileName) return; // Se não está numa página com header, não faz nada
+
+    if (currentProfileName) {
+        headerProfileName.textContent = currentProfileName;
+    } else {
+        // Isso não deve acontecer se o auth-guard estiver certo
+        headerProfileName.textContent = "Sem Perfil";
+    }
+
+    // 2. Busca a foto do perfil no Firestore
+    if (empresaId && currentProfileName) {
+        try {
+            // O caminho agora é: "empresas" -> {empresaId} -> "perfis" -> {nomeDoPerfil}
+            // ATENÇÃO: Se você permitir renomear perfis, teremos que mudar isso
+            const perfilDocRef = doc(db, "empresas", empresaId, "perfis", currentProfileName);
+            const docSnap = await getDoc(perfilDocRef); // Precisamos importar getDoc
+
+            if (docSnap.exists()) {
+                const perfilData = docSnap.data();
+                if (headerProfilePic && perfilData.foto_perfil) {
+                    headerProfilePic.src = perfilData.foto_perfil;
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao buscar foto do perfil:", error);
+            if (headerProfilePic) headerProfilePic.src = 'https://via.placeholder.com/40'; // Foto padrão
+        }
+    }
+}
+
+// 3. Precisamos importar o 'getDoc'
+// Vá ao TOPO do app.js e adicione 'getDoc' na lista de imports do firestore
+// ...
+// import { 
+//     doc,
+//     setDoc,
+//     collection,
+//     getDocs
+// } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+// ...
+// Adicione 'getDoc' assim:
+// import { 
+//     doc,
+//     setDoc,
+//     collection,
+//     getDocs,
+//     getDoc  // <-- ADICIONE ESTE
+// } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+// ...
+
+// 4. Executa a função em todas as páginas
+carregarDadosGlobaisUsuario();
