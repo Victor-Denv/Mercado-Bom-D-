@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL LIMPA) === */
+/* === app.js (VERSÃO FINAL - 13/11/2025 - CORREÇÃO DE SINTAXE) === */
 
 // --- IMPORTS DO FIREBASE (CDN) ---
 import {
@@ -11,8 +11,9 @@ import {
 import {
     doc, setDoc, getDoc, collection, getDocs, addDoc, deleteDoc, updateDoc,
     query, where, Timestamp, serverTimestamp, increment, writeBatch,
-    orderBy, limit // <-- ESTAS SÃO AS ADIÇÕES
+    orderBy, limit
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
 import {
     ref, uploadString, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-storage.js";
@@ -34,7 +35,7 @@ let fotoAtualURL = null; // Para editar perfil
  * ===================================== */
 function getEmpresaId() {
     const empresaId = localStorage.getItem('empresaId');
-    if (!empresaId) console.warn("ID da Empresa não encontrado.");
+    if (!empresaId) console.warn("ID da Empresa não encontrado no localStorage.");
     return empresaId;
 }
 
@@ -82,7 +83,7 @@ function resizeAndEncodeImage(file, maxWidth, maxHeight, quality) {
 
 /* * =====================================
  * FUNÇÕES DE CARREGAMENTO DE PÁGINA
- * (Definidas primeiro, chamadas depois)
+ * (Definidas primeiro, chamadas depois pelo listener de auth)
  * ===================================== */
 
 async function carregarDadosGlobaisUsuario() {
@@ -107,6 +108,78 @@ async function carregarDadosGlobaisUsuario() {
                 headerProfilePic.src = docSnap.data().foto_perfil || 'https://via.placeholder.com/40';
             }
         } catch (e) { console.error(e); }
+    }
+}
+
+async function carregarDropdownPerfis() {
+    const profileDropdownList = document.getElementById('profile-dropdown-list');
+    if (!profileDropdownList) return; 
+
+    const empresaId = getEmpresaId();
+    const currentProfileName = localStorage.getItem('currentProfile');
+    if (!empresaId) return;
+
+    const perfisRef = collection(db, "empresas", empresaId, "perfis");
+    try {
+        const querySnapshot = await getDocs(perfisRef);
+        profileDropdownList.innerHTML = ''; 
+
+        if (querySnapshot.empty) {
+            profileDropdownList.innerHTML = '<a href="configuracoes.html"><span>Adicionar Perfis</span></a>';
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const perfil = docSnap.data();
+            const link = document.createElement('a');
+            link.href = "#"; 
+            link.innerHTML = `
+                <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
+                <span>${perfil.nome}</span>
+                ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
+            `;
+            
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (perfil.nome !== currentProfileName) {
+                    localStorage.setItem('currentProfile', perfil.nome);
+                    window.location.reload(); 
+                }
+            });
+            profileDropdownList.appendChild(link);
+        });
+
+        // Adiciona o link "Gerenciar" e "Sair"
+        const divider = document.createElement('div');
+        divider.style.borderTop = "1px solid var(--border-light)";
+        divider.style.margin = "5px 0";
+        profileDropdownList.appendChild(divider);
+
+        const manageLink = document.createElement('a');
+        manageLink.href = "configuracoes.html";
+        manageLink.innerHTML = `<i class="fas fa-cog" style="margin-right: 8px;"></i> Gerenciar Perfis`;
+        profileDropdownList.appendChild(manageLink);
+
+        const logoutLink = document.createElement('a');
+        logoutLink.href = "#";
+        logoutLink.innerHTML = `<i class="fas fa-sign-out-alt" style="margin-right: 8px;"></i> Sair`;
+        logoutLink.addEventListener('click', async (e) => {
+             e.preventDefault();
+             if (confirm('Você tem certeza que deseja sair?')) {
+                try {
+                    await signOut(auth);
+                    localStorage.removeItem('empresaId');
+                    localStorage.removeItem('currentProfile');
+                    window.location.href = 'index.html';
+                } catch (error) {
+                    alert("Erro ao sair: " + error.message);
+                }
+            }
+        });
+        profileDropdownList.appendChild(logoutLink);
+
+    } catch (e) { 
+        console.error("Erro ao carregar dropdown de perfis:", e);
+        profileDropdownList.innerHTML = '<a href="#"><span>Erro ao carregar</span></a>';
     }
 }
 
@@ -164,7 +237,7 @@ async function carregarCategorias() {
     try {
         const querySnapshot = await getDocs(categoriasRef);
         cacheCategorias = [];
-        if (categoryList) categoryList.innerHTML = ''; // Limpa a lista visual
+        if (categoryList) categoryList.innerHTML = ''; 
 
         if (querySnapshot.empty && categoryList) {
             categoryList.innerHTML = '<li><span>Nenhuma categoria cadastrada.</span></li>';
@@ -177,7 +250,13 @@ async function carregarCategorias() {
 
             if (categoryList) {
                 const li = document.createElement('li');
-                li.innerHTML = `<span>${categoria.nome}</span> <button class="btn-action delete"><i class="fas fa-trash-alt"></i></button>`;
+                li.className = 'profile-item'; 
+                li.innerHTML = `
+                    <img src="https://via.placeholder.com/30" alt="cat" class="dropdown-avatar" style="opacity: 0.2; width: 20px; height: 20px;">
+                    <span>${categoria.nome}</span>
+                    <button class="btn-action edit" style="visibility: hidden;"><i class="fas fa-pencil-alt"></i></button>
+                    <button class="btn-action delete"><i class="fas fa-trash-alt"></i></button>
+                `;
                 li.querySelector('.btn-action.delete').addEventListener('click', (e) => {
                     e.preventDefault();
                     openModal({ type: 'categoria', id: categoriaId, nome: categoria.nome });
@@ -194,6 +273,8 @@ function popularDropdownCategorias(categorias) {
     selects.forEach(select => {
         if (!select) return;
         const placeholderOption = select.querySelector('option');
+        if (!placeholderOption) return; 
+        const valorAntigo = select.value; 
         select.innerHTML = '';
         select.appendChild(placeholderOption);
         categorias.forEach(cat => {
@@ -202,6 +283,7 @@ function popularDropdownCategorias(categorias) {
             option.textContent = cat.nome;
             select.appendChild(option);
         });
+        select.value = valorAntigo; 
     });
 }
 
@@ -329,14 +411,24 @@ async function carregarDashboard() {
 
         const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
         const fechamentosSnap = await getDocs(fechamentosRef);
-        const hoje = new Date(), hojeID = hoje.toISOString().split('T')[0];
-        const mesAtual = hoje.getMonth() + 1, anoAtual = hoje.getFullYear();
+        
+        // CORREÇÃO DE FUSO HORÁRIO
+        const hoje = new Date();
+        const ano = hoje.getFullYear();
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        const hojeID = `${ano}-${mes}-${dia}`;
+        // FIM DA CORREÇÃO
+
+        const mesAtual = hoje.getMonth() + 1;
+        const anoAtual = hoje.getFullYear();
         let totalVendasDia = 0, totalVendasMes = 0;
+
         fechamentosSnap.forEach(docSnap => {
             const v = docSnap.data();
-            const [ano, mes, dia] = v.data_fechamento.split('-').map(Number);
+            const [fAno, fMes, fDia] = v.data_fechamento.split('-').map(Number);
             if (v.data_fechamento === hojeID) totalVendasDia = v.total;
-            if (ano === anoAtual && mes === mesAtual) totalVendasMes += v.total;
+            if (fAno === anoAtual && fMes === mesAtual) totalVendasMes += v.total;
         });
         if (vendasDiaCard) vendasDiaCard.textContent = `R$ ${totalVendasDia.toFixed(2)}`;
         if (valorVendasMesCard) valorVendasMesCard.textContent = `R$ ${totalVendasMes.toFixed(2)}`;
@@ -346,8 +438,10 @@ async function carregarDashboard() {
     if (activityFeedList) {
         try {
             const atividadesRef = collection(db, "empresas", empresaId, "atividades");
-            const q = query(atividadesRef, where("timestamp", "<=", new Date()), 10);
+            // CORREÇÃO PARA ORDENAR O EXTRATO
+            const q = query(atividadesRef, orderBy("timestamp", "desc"), limit(10));
             const activitySnap = await getDocs(q);
+            
             activityFeedList.innerHTML = '';
             if (activitySnap.empty) {
                 activityFeedList.innerHTML = '<li class="feed-item"><span>Nenhuma atividade recente.</span></li>';
@@ -365,86 +459,14 @@ async function carregarDashboard() {
         } catch (e) { console.error(e); }
     }
 }
-// --- CARREGA O DROPDOWN DE PERFIS (NOVO) ---
-async function carregarDropdownPerfis() {
-    const profileDropdownList = document.getElementById('profile-dropdown-list');
-    if (!profileDropdownList) return; // Só roda se o dropdown existir
 
-    const empresaId = getEmpresaId();
-    const currentProfileName = localStorage.getItem('currentProfile');
-    if (!empresaId) return;
-
-    const perfisRef = collection(db, "empresas", empresaId, "perfis");
-    try {
-        const querySnapshot = await getDocs(perfisRef);
-        profileDropdownList.innerHTML = ''; // Limpa o "Carregando..."
-
-        if (querySnapshot.empty) {
-            profileDropdownList.innerHTML = '<a href="configuracoes.html"><span>Adicionar Perfis</span></a>';
-        }
-
-        querySnapshot.forEach((doc) => {
-            const perfil = doc.data();
-            const link = document.createElement('a');
-            link.href = "#"; // É um link de ação
-            link.innerHTML = `
-                <img src="${perfil.foto_perfil || 'https://via.placeholder.com/30'}" alt="${perfil.nome}" class="dropdown-avatar">
-                <span>${perfil.nome}</span>
-                ${perfil.nome === currentProfileName ? '<i class="fas fa-check current-profile-indicator"></i>' : ''}
-            `;
-            
-            // Adiciona o clique para TROCAR de perfil
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (perfil.nome !== currentProfileName) {
-                    localStorage.setItem('currentProfile', perfil.nome);
-                    window.location.reload(); // Recarrega a página com o novo perfil
-                }
-            });
-            profileDropdownList.appendChild(link);
-        });
-
-        // Adiciona o link "Gerenciar" e "Sair"
-        const divider = document.createElement('div');
-        divider.style.borderTop = "1px solid var(--border-light)";
-        divider.style.margin = "5px 0";
-        profileDropdownList.appendChild(divider);
-
-        const manageLink = document.createElement('a');
-        manageLink.href = "configuracoes.html";
-        manageLink.innerHTML = `<i class="fas fa-cog" style="margin-right: 8px;"></i> Gerenciar Perfis`;
-        profileDropdownList.appendChild(manageLink);
-
-        const logoutLink = document.createElement('a');
-        logoutLink.href = "#";
-        logoutLink.innerHTML = `<i class="fas fa-sign-out-alt" style="margin-right: 8px;"></i> Sair`;
-        logoutLink.addEventListener('click', async (e) => {
-             e.preventDefault();
-             if (confirm('Você tem certeza que deseja sair?')) {
-                try {
-                    await signOut(auth);
-                    localStorage.removeItem('empresaId');
-                    localStorage.removeItem('currentProfile');
-                    window.location.href = 'index.html';
-                } catch (error) {
-                    alert("Erro ao sair: " + error.message);
-                }
-            }
-        });
-        profileDropdownList.appendChild(logoutLink);
-
-    } catch (e) { 
-        console.error("Erro ao carregar dropdown de perfis:", e);
-        profileDropdownList.innerHTML = '<a href="#"><span>Erro ao carregar</span></a>';
-    }
-}
 async function carregarRelatorioVendas() {
     const salesReportBody = document.getElementById('sales-report-body');
     if (!salesReportBody) return;
     const empresaId = getEmpresaId();
     const fechamentosRef = collection(db, "empresas", empresaId, "fechamentos");
     try {
-        const querySnapshot = await getDocs(fechamentosRef);
+        const querySnapshot = await getDocs(query(fechamentosRef, orderBy("timestamp", "desc")));
         salesReportBody.innerHTML = '';
         if (querySnapshot.empty) {
             salesReportBody.innerHTML = '<tr><td colspan="5">Nenhum fechamento registrado.</td></tr>';
@@ -520,7 +542,7 @@ async function carregarPerdas() {
     const empresaId = getEmpresaId();
     const perdasRef = collection(db, "empresas", empresaId, "perdas");
     try {
-        const querySnapshot = await getDocs(perdasRef);
+        const querySnapshot = await getDocs(query(perdasRef, orderBy("data_perda", "desc")));
         lossesReportBody.innerHTML = '';
         let totalPerdas = 0;
         querySnapshot.forEach(docSnap => {
@@ -650,7 +672,7 @@ function setupGlobalSearch() {
         }
     });
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-bar')) {
+        if (globalSearchResults && !e.target.closest('.search-bar')) {
             globalSearchResults.style.display = 'none';
         }
     });
@@ -672,24 +694,21 @@ onAuthStateChanged(auth, (user) => {
         // --- USUÁRIO ESTÁ LOGADO ---
         localStorage.setItem('empresaId', user.uid);
 
-        // REGRA 2: Logado, mas sem perfil (e não está na tela de perfis/config)
         if (!currentProfile && currentPage !== 'perfis.html' && currentPage !== 'configuracoes.html' && currentPage !== 'editar-perfil.html') {
             window.location.href = 'perfis.html';
             return;
         }
-
-        // REGRA 3: Logado E com perfil (ou na tela de perfis), mas vendo o login
         if (paginasDeLogin.includes(currentPage)) {
             window.location.href = currentProfile ? 'dashboard.html' : 'perfis.html';
             return;
         }
 
-        // --- USUÁRIO LOGADO E AUTORIZADO A ESTAR AQUI ---
-        // Roda todas as funções de carregamento. Elas vão verificar
-        // se os elementos HTML necessários existem antes de executar.
+        // --- USUÁRIO LOGADO E AUTORIZADO ---
+        // Roda todas as funções de carregamento
         carregarDadosGlobaisUsuario();
+        carregarDropdownPerfis();
         setupGlobalSearch();
-        carregarCategorias(); // (Precisa rodar em todo lado para os dropdowns)
+        carregarCategorias();
         carregarPerfis();
         carregarDashboard();
         carregarProdutos();
@@ -700,30 +719,24 @@ onAuthStateChanged(auth, (user) => {
         carregarEstoqueBaixo();
         carregarInventario();
         carregarPerdas();
-        carregarDropdownPerfis();
 
     } else {
         // --- USUÁRIO NÃO ESTÁ LOGADO ---
-        
-        // REGRA 1: Não está logado e NÃO está numa página de login/cadastro
         if (!paginasDeLogin.includes(currentPage)) {
             localStorage.removeItem('empresaId');
             localStorage.removeItem('currentProfile');
             alert('Você precisa estar logado para acessar esta página.');
             window.location.href = 'index.html';
         }
-        // Se não estiver logado E ESTIVER na pág. de login, não faz nada
     }
 });
 
 
 /* * =====================================
- * LISTENERS DE FORMULÁRIO (Separados do Auth)
+ * LISTENERS DE FORMULÁRIO (Definidos uma só vez)
  * ===================================== */
 
 // --- FORMULÁRIOS DE LOGIN/CADASTRO ---
-// (Estes funcionam mesmo se o usuário estiver deslogado)
-
 const formCadastro = document.getElementById('form-cadastro');
 if (formCadastro) {
     formCadastro.addEventListener('submit', async (event) => {
@@ -731,21 +744,12 @@ if (formCadastro) {
         const email = document.getElementById('email').value;
         const senha = document.getElementById('senha').value;
         const confirmaSenha = document.getElementById('confirma-senha').value;
-
-        if (senha !== confirmaSenha) {
-            alert("As senhas não conferem!");
-            return;
-        }
-        if (senha.length < 6) {
-             alert("A senha deve ter no mínimo 6 caracteres.");
-             return;
-        }
-
+        if (senha !== confirmaSenha) return alert("As senhas não conferem!");
+        if (senha.length < 6) return alert("A senha deve ter no mínimo 6 caracteres.");
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
             const user = userCredential.user;
             const batch = writeBatch(db);
-
             const empresaDocRef = doc(db, "empresas", user.uid);
             batch.set(empresaDocRef, {
                 adminEmail: user.email,
@@ -754,20 +758,13 @@ if (formCadastro) {
                 estoqueMinimoPadrao: 10
             });
             const perfilAdminRef = doc(db, "empresas", user.uid, "perfis", "Admin");
-            batch.set(perfilAdminRef, {
-                nome: "Admin",
-                foto_perfil: PLACEHOLDER_IMG
-            });
+            batch.set(perfilAdminRef, { nome: "Admin", foto_perfil: PLACEHOLDER_IMG });
             await batch.commit();
             alert(`Conta criada com sucesso para ${user.email}!`);
             window.location.href = 'index.html';
-
         } catch (error) {
-            if (error.code === 'auth/email-already-in-use') {
-                alert("Erro: Este email já está em uso.");
-            } else {
-                alert("Erro ao criar conta: " + error.message);
-            }
+            if (error.code === 'auth/email-already-in-use') alert("Erro: Este email já está em uso.");
+            else alert("Erro ao criar conta: " + error.message);
         }
     });
 }
@@ -781,7 +778,7 @@ if (loginForm) {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, senha);
             localStorage.setItem('empresaId', userCredential.user.uid);
-            localStorage.removeItem('currentProfile'); // Força a seleção de perfil
+            localStorage.removeItem('currentProfile');
             window.location.href = 'perfis.html';
         } catch (error) {
             alert("Erro: Email ou senha incorretos.");
@@ -789,9 +786,78 @@ if (loginForm) {
     });
 }
 
+// --- DROPDOWN DE PERFIL (HEADER) ---
+const profileDropdown = document.getElementById('profile-dropdown');
+if (profileDropdown) {
+    const dropdownContent = document.getElementById('profile-dropdown-list');
+    profileDropdown.addEventListener('click', (event) => {
+        if (event.target.tagName === 'A' || event.target.closest('a')) return;
+        const isShown = dropdownContent.style.display === 'block';
+        dropdownContent.style.display = isShown ? 'none' : 'block';
+        profileDropdown.classList.toggle('active', !isShown);
+    });
+    document.addEventListener('click', (event) => {
+        if (profileDropdown && dropdownContent && !profileDropdown.contains(event.target)) {
+            dropdownContent.style.display = 'none';
+            profileDropdown.classList.remove('active');
+        }
+    });
+}
 
-// --- FORMULÁRIOS INTERNOS (Só adiciona listeners se o ID existir) ---
+// --- BOTÃO SAIR (SIDEBAR) ---
+const logoutButton = document.querySelector('.sidebar-footer a');
+if (logoutButton) {
+    logoutButton.addEventListener('click', async (event) => {
+        event.preventDefault(); 
+        if (confirm('Você tem certeza que deseja sair?')) {
+            try {
+                await signOut(auth);
+                localStorage.removeItem('empresaId'); 
+                localStorage.removeItem('currentProfile'); 
+                window.location.href = 'index.html';
+            } catch (error) {
+                alert("Erro ao sair: " + error.message);
+            }
+        }
+    });
+}
 
+// --- MODAL DE CONFIRMAÇÃO (Listeners) ---
+const modalBtnCancel = document.getElementById('modal-btn-cancel');
+const modalBtnConfirm = document.getElementById('modal-btn-confirm');
+const modalCloseIcon = document.querySelector('.modal-close-icon');
+if (modalBtnCancel) modalBtnCancel.addEventListener('click', closeModal);
+if (modalCloseIcon) modalCloseIcon.addEventListener('click', closeModal);
+if (modalBtnConfirm) {
+    modalBtnConfirm.addEventListener('click', async () => {
+        const empresaId = getEmpresaId();
+        if (!empresaId || !deleteConfig.type || !deleteConfig.id) return closeModal();
+        let docRef;
+        let logMessage = "";
+        try {
+            if (deleteConfig.type === 'categoria') {
+                docRef = doc(db, "empresas", empresaId, "categorias", deleteConfig.id);
+                logMessage = `Categoria "${deleteConfig.nome || ''}" foi removida.`;
+            } else if (deleteConfig.type === 'produto') {
+                docRef = doc(db, "empresas", empresaId, "produtos", deleteConfig.id);
+                logMessage = `Produto "${deleteConfig.nome || ''}" (SKU: ${deleteConfig.id}) foi removido.`;
+            } else if (deleteConfig.type === 'perfil') {
+                docRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
+                logMessage = `Perfil "${deleteConfig.id}" foi removido.`;
+            } else {
+                return closeModal(); 
+            }
+            await deleteDoc(docRef);
+            await logActivity('fas fa-trash-alt', 'red', 'Item Excluído', logMessage);
+            closeModal();
+            if (deleteConfig.type === 'categoria') carregarCategorias();
+            if (deleteConfig.type === 'produto') carregarProdutos();
+            if (deleteConfig.type === 'perfil') carregarGerenciarPerfis();
+        } catch (e) { alert(`Erro ao excluir: ${e.message}`); }
+    });
+}
+
+// --- FORM ADICIONAR CATEGORIA ---
 const formAddCategory = document.getElementById('form-add-categoria');
 if (formAddCategory) {
     formAddCategory.addEventListener('submit', async (e) => {
@@ -810,6 +876,7 @@ if (formAddCategory) {
     });
 }
 
+// --- FORM ADICIONAR PRODUTO ---
 const formAddProduct = document.getElementById('form-add-product');
 if (formAddProduct) {
     formAddProduct.addEventListener('submit', async (e) => {
@@ -839,6 +906,7 @@ if (formAddProduct) {
     });
 }
 
+// --- FORM EDITAR PRODUTO ---
 const formEditProduct = document.getElementById('form-edit-product');
 if (formEditProduct) {
     formEditProduct.addEventListener('submit', async (e) => {
@@ -865,11 +933,13 @@ if (formEditProduct) {
     });
 }
 
+// --- FILTROS DE PRODUTO ---
 const filtroBuscaInput = document.getElementById('filtro-busca');
 const filtroCategoriaSelect = document.getElementById('filtro-categoria');
 if (filtroBuscaInput) filtroBuscaInput.addEventListener('keyup', aplicarFiltrosDeProduto);
 if (filtroCategoriaSelect) filtroCategoriaSelect.addEventListener('change', aplicarFiltrosDeProduto);
 
+// --- FORM REGISTRAR ENTRADA ---
 const formEntrada = document.getElementById('form-add-entrada');
 if (formEntrada) {
     formEntrada.addEventListener('submit', async (e) => {
@@ -888,6 +958,7 @@ if (formEntrada) {
     });
 }
 
+// --- FORM REGISTRAR SAÍDA ---
 const formSaida = document.getElementById('form-add-saida');
 if (formSaida) {
     formSaida.addEventListener('submit', async (e) => {
@@ -923,17 +994,13 @@ if (formSaida) {
 const formFechamento = document.getElementById('form-fechamento');
 if (formFechamento) {
     const dataField = document.getElementById('data-fechamento');
-    
-    // CORREÇÃO DO FUSO HORÁRIO (UTC)
-    if(dataField && !dataField.value) { // Preenche a data se estiver vazia
-        const hoje = new Date(); // Pega a data local
+    if(dataField && !dataField.value) {
+        const hoje = new Date();
         const ano = hoje.getFullYear();
-        const mes = String(hoje.getMonth() + 1).padStart(2, '0'); // Adiciona '0' (ex: 09)
-        const dia = String(hoje.getDate()).padStart(2, '0'); // Adiciona '0' (ex: 05)
-        
-        dataField.value = `${ano}-${mes}-${dia}`; // Formato YYYY-MM-DD
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        dataField.value = `${ano}-${mes}-${dia}`;
     }
-
     formFechamento.addEventListener('submit', async (e) => {
         e.preventDefault();
         const empresaId = getEmpresaId();
@@ -944,7 +1011,7 @@ if (formFechamento) {
             cartao: parseFloat(document.getElementById('total-cartao').value) || 0,
             pix: parseFloat(document.getElementById('total-pix').value) || 0,
             data_fechamento: dataID,
-            timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00")) // Salva a data corretamente
+            timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
         };
         fechamento.total = fechamento.dinheiro + fechamento.cartao + fechamento.pix;
         try {
@@ -958,6 +1025,8 @@ if (formFechamento) {
         } catch (e) { alert(`Erro: ${e.message}`); }
     });
 }
+
+// --- FORM CONFIGURAÇÕES DO MERCADO ---
 const formConfigMercado = document.getElementById('form-config-mercado');
 if (formConfigMercado) {
     formConfigMercado.addEventListener('submit', async (e) => {
@@ -976,6 +1045,7 @@ if (formConfigMercado) {
     });
 }
 
+// --- FORM ADICIONAR PERFIL ---
 const formAddPerfil = document.getElementById('form-add-perfil');
 if (formAddPerfil) {
     formAddPerfil.addEventListener('submit', async (e) => {
@@ -996,6 +1066,7 @@ if (formAddPerfil) {
     });
 }
 
+// --- FORM EDITAR PERFIL ---
 const formEditPerfil = document.getElementById('form-edit-perfil');
 if (formEditPerfil) {
     const fotoInput = document.getElementById('profile-pic-input');
@@ -1046,7 +1117,7 @@ if (formEditPerfil) {
     });
 }
 
-// Autocomplete (precisa ser inicializado)
+// --- AUTOCOMPLETE (Listeners) ---
 const searchInput = document.getElementById('buscar-produto');
 if (searchInput) {
     const suggestionsBox = document.getElementById('suggestions-box');
@@ -1086,33 +1157,6 @@ if (searchInput) {
             suggestionsBox.style.display = 'block';
         } else {
             suggestionsBox.style.display = 'none';
-        }
-    });
-}
-
-// --- LISTENER DO DROPDOWN DE PERFIL (NOVO) ---
-const profileDropdown = document.getElementById('profile-dropdown');
-if (profileDropdown) {
-    const dropdownContent = document.getElementById('profile-dropdown-list');
-    
-    // Mostra/Esconde o menu ao clicar no container principal
-    profileDropdown.addEventListener('click', (event) => {
-        // Impede que clicar em um link dentro do dropdown o feche imediatamente
-        if (event.target.tagName === 'A' || event.target.closest('a')) {
-            return;
-        }
-        
-        // Alterna a exibição
-        const isShown = dropdownContent.style.display === 'block';
-        dropdownContent.style.display = isShown ? 'none' : 'block';
-        profileDropdown.classList.toggle('active', !isShown);
-    });
-
-    // Fecha se clicar fora
-    document.addEventListener('click', (event) => {
-        if (profileDropdown && !profileDropdown.contains(event.target)) {
-            dropdownContent.style.display = 'none';
-            profileDropdown.classList.remove('active');
         }
     });
 }
