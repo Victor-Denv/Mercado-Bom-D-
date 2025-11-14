@@ -3,7 +3,8 @@
 // --- IMPORTS DO FIREBASE (CDN) ---
 import {
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword
+    signInWithEmailAndPassword,
+    signOut // <-- ADICIONE ESTA LINHA
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
 
 import {
@@ -145,17 +146,26 @@ if (loginForm) {
     });
 }
 
-/* * =====================================
- * LÓGICA DE LOGOUT (BOTÃO SAIR)
- * ===================================== */
+/// --- LÓGICA DE LOGOUT (BOTÃO SAIR) - CORRIGIDA ---
 const logoutButton = document.querySelector('.sidebar-footer a');
 if (logoutButton) {
-    logoutButton.addEventListener('click', function(event) {
-        event.preventDefault();
+    logoutButton.addEventListener('click', async (event) => { // <-- Virou 'async'
+        event.preventDefault(); 
         if (confirm('Você tem certeza que deseja sair?')) {
-            localStorage.removeItem('empresaId');
-            localStorage.removeItem('currentProfile');
-            window.location.href = 'index.html';
+            try {
+                // 1. Avisa o Firebase para fazer logout
+                await signOut(auth);
+                
+                // 2. Limpa os "crachás"
+                localStorage.removeItem('empresaId'); 
+                localStorage.removeItem('currentProfile'); 
+                
+                // 3. Manda de volta para o login
+                window.location.href = 'index.html';
+
+            } catch (error) {
+                alert("Erro ao sair: " + error.message);
+            }
         }
     });
 }

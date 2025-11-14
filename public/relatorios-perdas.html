@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório: Vendas Diárias - Mercado BOM D+</title>
-
-    <script src="auth-guard.js"></script>
+    <title>Relatório: Perdas - Mercado BOM D+</title>
+    
+    <script type="module" src="auth-guard.js"></script>
 
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
@@ -30,7 +30,7 @@
 
     <main class="content">
         
-     <header class="top-header">
+      <header class="top-header">
             <div class="search-bar">
                 <i class="fas fa-search"></i>
                 <input type="text" id="global-search-input" placeholder="Pesquisar páginas..." autocomplete="off">
@@ -60,7 +60,7 @@
 
         <h2 class="section-title">Selecionar Relatório</h2>
         <div class="report-selector">
-            <a href="relatorios-vendas.html" class="report-card active">
+            <a href="relatorios-vendas.html" class="report-card">
                 <i class="fas fa-wallet"></i>
                 <h4>Vendas Diárias</h4>
                 <small>Histórico de vendas por dia.</small>
@@ -75,7 +75,7 @@
                 <h4>Inventário (Valor)</h4>
                 <small>Valor total de custo do estoque.</small>
             </a>
-            <a href="relatorios-perdas.html" class="report-card">
+            <a href="relatorios-perdas.html" class="report-card active">
                 <i class="fas fa-arrow-down"></i>
                 <h4>Perdas e Ajustes</h4>
                 <small>Saídas que não foram vendas.</small>
@@ -84,7 +84,7 @@
         
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Relatório: Histórico de Vendas Diárias</h3>
+                <h3 class="card-title">Relatório: Perdas e Ajustes</h3>
                 <button class="btn-secondary"><i class="fas fa-print"></i> Imprimir</button>
             </div>
             
@@ -93,14 +93,20 @@
                     <thead>
                         <tr>
                             <th>Data</th>
-                            <th>Total Vendas (R$)</th>
-                            <th>Cartão (R$)</th>
-                            <th>Dinheiro (R$)</th>
-                            <th>Pix (R$)</th>
+                            <th>Produto</th>
+                            <th>Qtd.</th>
+                            <th>Motivo da Saída</th>
+                            <th>Valor de Custo (R$)</th>
                         </tr>
                     </thead>
-                    <tbody id="sales-report-body">
+                    <tbody id="losses-report-body">
                         </tbody>
+                    <tfoot>
+                        <tr class="table-total-footer">
+                            <td colspan="4">TOTAL DE PERDAS NO PERÍODO</td>
+                            <td class="stock-low" id="losses-total-footer">R$ 0,00</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -108,6 +114,5 @@
     </main>
 
     <script type="module" src="app.js"></script>
-
 </body>
 </html>
