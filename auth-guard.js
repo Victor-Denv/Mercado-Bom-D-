@@ -7,7 +7,8 @@ const auth = firebase.auth();
 const currentPage = window.location.pathname.split('/').pop();
 
 auth.onAuthStateChanged(user => {
-    const empresaId = localStorage.getItem('empresaId'); // (Usamos empresaId)
+    // Usamos o 'user' do Firebase E o 'empresaId' do localStorage
+    const empresaId = localStorage.getItem('empresaId');
 
     if (user && empresaId) {
         // --- USUÁRIO ESTÁ LOGADO ---
