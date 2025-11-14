@@ -846,12 +846,21 @@ if (formSaida) {
     });
 }
 
+// --- FORM FECHAMENTO DE CAIXA ---
 const formFechamento = document.getElementById('form-fechamento');
 if (formFechamento) {
     const dataField = document.getElementById('data-fechamento');
-    if(dataField && !dataField.value) {
-        dataField.value = new Date().toISOString().split('T')[0];
+    
+    // CORREÇÃO DO FUSO HORÁRIO (UTC)
+    if(dataField && !dataField.value) { // Preenche a data se estiver vazia
+        const hoje = new Date(); // Pega a data local
+        const ano = hoje.getFullYear();
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0'); // Adiciona '0' (ex: 09)
+        const dia = String(hoje.getDate()).padStart(2, '0'); // Adiciona '0' (ex: 05)
+        
+        dataField.value = `${ano}-${mes}-${dia}`; // Formato YYYY-MM-DD
     }
+
     formFechamento.addEventListener('submit', async (e) => {
         e.preventDefault();
         const empresaId = getEmpresaId();
@@ -862,7 +871,7 @@ if (formFechamento) {
             cartao: parseFloat(document.getElementById('total-cartao').value) || 0,
             pix: parseFloat(document.getElementById('total-pix').value) || 0,
             data_fechamento: dataID,
-            timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
+            timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00")) // Salva a data corretamente
         };
         fechamento.total = fechamento.dinheiro + fechamento.cartao + fechamento.pix;
         try {
@@ -876,7 +885,6 @@ if (formFechamento) {
         } catch (e) { alert(`Erro: ${e.message}`); }
     });
 }
-
 const formConfigMercado = document.getElementById('form-config-mercado');
 if (formConfigMercado) {
     formConfigMercado.addEventListener('submit', async (e) => {
