@@ -776,8 +776,10 @@ if (profileDropdown) {
 // --- BOTÃO SAIR (SIDEBAR) ---
 const logoutButton = document.querySelector('.sidebar-footer a');
 if (logoutButton) {
-    logoutButton.addEventListener('click', async (event) => {
-        e.preventDefault(); 
+    logoutButton.addEventListener('click', async (event) => { // A variável é 'event'
+        
+        event.preventDefault(); // <-- CORRIGIDO! (antes era 'e.preventDefault()')
+        
         if (confirm('Você tem certeza que deseja sair?')) {
             try {
                 await signOut(auth);
@@ -790,7 +792,6 @@ if (logoutButton) {
         }
     });
 }
-
 // --- MODAL DE CONFIRMAÇÃO (Listeners) ---
 const modalBtnCancel = document.getElementById('modal-btn-cancel');
 const modalBtnConfirm = document.getElementById('modal-btn-confirm');
@@ -1464,3 +1465,123 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
     limparVendaPDV();
 }
 // --- FIM DA LÓGICA DO PDV ---
+
+
+/* * =====================================
+ * =====================================
+ * LÓGICA DA ZONA DE PERIGO (CONFIGURAÇÕES)
+ * =====================================
+ * ===================================== */
+
+// --- Botões da página de Configurações ---
+const pageConfig = document.getElementById('form-config-mercado'); // Usamos um ID da página de config
+
+if (pageConfig) { // Só executa se estiver na página de Configurações
+    
+    // --- 1. Botão Exportar CSV ---
+    // (Não existe no seu HTML, vamos adicionar um ID)
+    const btnExportar = document.querySelector('.btn-secondary.btn-danger + .btn-secondary'); // Seletor complexo, melhor adicionar ID
+    const btnLimpar = document.getElementById('btn-limpar-sistema');
+
+    // Função para converter dados para CSV
+    function convertToCSV(data, headers) {
+        const headerRow = headers.join(';');
+        const rows = data.map(item => {
+            return headers.map(header => {
+                let cell = item[header] === null || item[header] === undefined ? '' : item[header];
+                cell = String(cell).replace(/"/g, '""'); // Escapa aspas
+                if (cell.includes(';') || cell.includes('\n')) {
+                    cell = `"${cell}"`; // Coloca aspas se tiver ; ou \n
+                }
+                return cell;
+            }).join(';');
+        });
+        return [headerRow, ...rows].join('\n');
+    }
+
+    // Função para descarregar o CSV
+    function downloadCSV(csvString, filename) {
+        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para Excel entender acentos
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    // Tentativa de encontrar o botão de exportar (é melhor adicionar um ID no HTML)
+    const btnExportarDados = Array.from(document.querySelectorAll('.danger-zone-card .btn-secondary')).find(btn => btn.textContent.includes('Exportar Dados'));
+    
+    if (btnExportarDados) {
+        btnExportarDados.addEventListener('click', async () => {
+            if (!confirm("Deseja descarregar um CSV com todos os produtos e categorias?")) return;
+            
+            try {
+                // 1. Buscar Produtos (usando o cache ou buscando de novo)
+                await carregarCacheParaPDV(); // Função do PDV que já carrega o cacheProdutos
+                
+                if (cacheProdutos.length === 0) {
+                    return alert("Nenhum produto encontrado para exportar.");
+                }
+
+                // Definimos as colunas que queremos no CSV
+                const headers = ['sku', 'nome', 'categoria_nome', 'qtd', 'custo', 'venda', 'estoque_minimo', 'vencimento'];
+                const csvData = convertToCSV(cacheProdutos, headers);
+                downloadCSV(csvData, 'export_produtos_mercado_bom_d.csv');
+
+            } catch (e) {
+                alert("Erro ao exportar dados: " + e.message);
+            }
+        });
+    } else {
+        console.warn("Botão de Exportar CSV não encontrado. Adicione um ID 'btn-exportar-csv' no HTML.");
+    }
+
+    // --- 2. Botão Limpar Sistema ---
+    if (btnLimpar) {
+        btnLimpar.addEventListener('click', async () => {
+            const confirmacao = prompt("Esta ação é IRREVERSÍVEL. Você perderá todos os seus PRODUTOS e PERDAS.\n\nPara confirmar, digite 'DELETAR' em maiúsculas:");
+            
+            if (confirmacao !== 'DELETAR') {
+                return alert("Ação cancelada.");
+            }
+            
+            alert("Iniciando limpeza... O sistema irá recarregar ao terminar.");
+            btnLimpar.disabled = true;
+            btnLimpar.textContent = "A limpar...";
+
+            try {
+                const empresaId = getEmpresaId();
+                const batch = writeBatch(db);
+
+                // 1. Apagar todos os produtos
+                const produtosRef = collection(db, "empresas", empresaId, "produtos");
+                const produtosSnap = await getDocs(produtosRef);
+                produtosSnap.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                
+                // 2. Apagar todos os registros de perdas
+                const perdasRef = collection(db, "empresas", empresaId, "perdas");
+                const perdasSnap = await getDocs(perdasRef);
+                perdasSnap.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+
+                await batch.commit();
+                
+                await logActivity('fas fa-exclamation-triangle', 'red', 'Sistema Limpo', 'Produtos e Perdas foram apagados.');
+                alert("Sistema limpo com sucesso!");
+                window.location.reload();
+
+            } catch (e) {
+                alert("Erro ao limpar o sistema: " + e.message);
+                btnLimpar.disabled = false;
+                btnLimpar.textContent = "Limpar Sistema";
+            }
+        });
+    }
+}
