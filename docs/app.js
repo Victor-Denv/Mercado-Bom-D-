@@ -18,7 +18,7 @@ import {
 import { auth, db } from './firebase-config.js'; // Note: 'storage' foi removido daqui
 
 // --- CONSTANTES GLOBAIS ---
-const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
+const PLACEHOLDER_IMG = 'https://via.placeholder.com/100/f9fafb/6b7280?text=User';
 let cacheProdutos = [];
 let cacheCategorias = [];
 let deleteConfig = {}; 
