@@ -1381,7 +1381,7 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
         }
     });
     
-   // Listener 5: Finalizar Venda (VERSÃO 2.0 - ATUALIZA TOTAIS)
+   // Listener 5: Finalizar Venda (VERSÃO 2.1 - CORRIGE RELATÓRIOS)
     btnFinalizarVenda.addEventListener('click', async () => {
         const empresaId = getEmpresaId();
         if (carrinhoPDV.length === 0) {
@@ -1415,24 +1415,29 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
                 });
             }
 
-            // 2. ATUALIZAR O TOTAL DE VENDAS DO DIA (A GRANDE MUDANÇA)
+            // 2. ATUALIZAR O TOTAL DE VENDAS DO DIA
             const hoje = new Date();
             const ano = hoje.getFullYear();
             const mes = String(hoje.getMonth() + 1).padStart(2, '0');
             const dia = String(hoje.getDate()).padStart(2, '0');
-            const dataID = `${ano}-${mes}-${dia}`; // Ex: "2025-11-16"
+            const dataID = `${ano}-${mes}-${dia}`;
 
             const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
 
-            // Cria um objeto para incrementar. Ex: { total: 15.50, dinheiro: 15.50 }
+            // --- ESTA É A ALTERAÇÃO ---
+            // Agora, garantimos que os 3 campos de pagamento são incrementados,
+            // mesmo que seja com 0, para que eles existam no documento.
             const incrementoVenda = {
                 total: increment(totalVendaPDV),
-                [tipoPagamento]: increment(totalVendaPDV), // Incrementa o tipo de pagto específico
-                data_fechamento: dataID, // Garante que estes campos existem
-                timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00")) // Garante que estes campos existem
+                dinheiro: increment(tipoPagamento === 'dinheiro' ? totalVendaPDV : 0),
+                cartao: increment(tipoPagamento === 'cartao' ? totalVendaPDV : 0),
+                pix: increment(tipoPagamento === 'pix' ? totalVendaPDV : 0),
+                data_fechamento: dataID,
+                timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
             };
+            // --- FIM DA ALTERAÇÃO ---
 
-            // Usa 'set' com 'merge' para criar o doc se não existir, ou atualizar se existir
+            // Usa 'set' com 'merge' para criar ou atualizar
             batch.set(fechamentoRef, incrementoVenda, { merge: true });
             
             // 3. Commitar as alterações no banco
@@ -1450,7 +1455,7 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
             // 5. Sucesso
             alert('Venda finalizada! Estoque e Totais do Dia atualizados.');
             limparVendaPDV();
-            cacheProdutos = []; // Limpa o cache para forçar recarga com estoque novo
+            cacheProdutos = []; 
             
         } catch (error) {
             console.error("Erro ao finalizar venda: ", error);
