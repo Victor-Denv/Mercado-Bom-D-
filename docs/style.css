@@ -1110,3 +1110,14 @@ tbody td {
         grid-template-columns: 1fr; 
     }
 }
+/* =====================================
+ * REMOÇÃO DE FOTOS DE PERFIL
+ * ===================================== */
+#header-profile-pic,         /* Esconde a foto do cabeçalho */
+.profile-card-pic,          /* Esconde a foto da seleção de perfil */
+.profile-list li.profile-item img, /* Esconde a foto da lista em Configurações */
+.profile-pic-container,     /* Esconde a foto da página Editar Perfil */
+.dropdown-avatar             /* Esconde a foto no menu dropdown */
+{
+    display: none !important;
+}
