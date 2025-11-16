@@ -1231,3 +1231,8 @@ tbody td {
         position: static;
     }
 }
+
+/* Esconde o ícone de sino (notificações) */
+.user-info .fa-bell {
+    display: none;
+}
