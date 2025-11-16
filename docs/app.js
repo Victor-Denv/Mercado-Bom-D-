@@ -616,7 +616,6 @@ function setupGlobalSearch() {
         { nome: 'Categorias', href: 'categorias.html', icone: 'fas fa-tags' },
         { nome: 'Registrar Entrada', href: 'registrar-entrada.html', icone: 'fas fa-arrow-down' },
         { nome: 'Registrar Perda/Ajuste', href: 'registrar-saida.html', icone: 'fas fa-arrow-up' },
-        { nome: 'Fechar Caixa (Vendas)', href: 'fechamento-caixa.html', icone: 'fas fa-wallet' },
         { nome: 'Relatórios de Vendas', href: 'relatorios-vendas.html', icone: 'fas fa-chart-bar' },
         { nome: 'Relatório: Estoque Baixo', href: 'relatorios-estoque-baixo.html', icone: 'fas fa-exclamation-triangle' },
         { nome: 'Relatório: Inventário', href: 'relatorios-inventario.html', icone: 'fas fa-dollar-sign' },
@@ -1381,14 +1380,16 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
         }
     });
     
-    // Listener 5: Finalizar Venda
+   // Listener 5: Finalizar Venda (VERSÃO 2.0 - ATUALIZA TOTAIS)
     btnFinalizarVenda.addEventListener('click', async () => {
         const empresaId = getEmpresaId();
         if (carrinhoPDV.length === 0) {
             return alert('O carrinho está vazio.');
         }
         
-        if (tipoPagamentoPDV.value === 'dinheiro') {
+        const tipoPagamento = tipoPagamentoPDV.value; // 'dinheiro', 'cartao', 'pix'
+        
+        if (tipoPagamento === 'dinheiro') {
             const valorPago = parseFloat(valorPagoPDV.value) || 0;
             if (valorPago < totalVendaPDV) {
                 return alert('O valor pago é menor que o total da venda.');
@@ -1405,15 +1406,38 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
         try {
             const batch = writeBatch(db);
             
+            // 1. Atualizar o estoque de cada produto
             for (const item of carrinhoPDV) {
                 const produtoRef = doc(db, "empresas", empresaId, "produtos", item.sku);
                 batch.update(produtoRef, { 
                     qtd: increment(-item.qtd_venda) 
                 });
             }
+
+            // 2. ATUALIZAR O TOTAL DE VENDAS DO DIA (A GRANDE MUDANÇA)
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            const dataID = `${ano}-${mes}-${dia}`; // Ex: "2025-11-16"
+
+            const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
+
+            // Cria um objeto para incrementar. Ex: { total: 15.50, dinheiro: 15.50 }
+            const incrementoVenda = {
+                total: increment(totalVendaPDV),
+                [tipoPagamento]: increment(totalVendaPDV), // Incrementa o tipo de pagto específico
+                data_fechamento: dataID, // Garante que estes campos existem
+                timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00")) // Garante que estes campos existem
+            };
+
+            // Usa 'set' com 'merge' para criar o doc se não existir, ou atualizar se existir
+            batch.set(fechamentoRef, incrementoVenda, { merge: true });
             
+            // 3. Commitar as alterações no banco
             await batch.commit();
             
+            // 4. Registrar atividade
             const tipoPagamentoTexto = tipoPagamentoPDV.options[tipoPagamentoPDV.selectedIndex].text;
             await logActivity(
                 'fas fa-shopping-cart', 
@@ -1422,7 +1446,8 @@ if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
                 `Venda de R$ ${totalVendaPDV.toFixed(2)} (${carrinhoPDV.length} itens). Pagamento: ${tipoPagamentoTexto}.`
             );
             
-            alert('Venda finalizada e estoque atualizado com sucesso!');
+            // 5. Sucesso
+            alert('Venda finalizada! Estoque e Totais do Dia atualizados.');
             limparVendaPDV();
             cacheProdutos = []; // Limpa o cache para forçar recarga com estoque novo
             
