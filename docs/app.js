@@ -609,6 +609,7 @@ function setupGlobalSearch() {
     const globalSearchResults = document.getElementById('global-search-results');
     if (!globalSearchInput) return;
     const paginasDoSite = [
+        { nome: 'Abrir Caixa (PDV)', href: 'pdv.html', icone: 'fas fa-cash-register' },
         { nome: 'Dashboard', href: 'dashboard.html', icone: 'fas fa-home' },
         { nome: 'Produtos', href: 'produtos.html', icone: 'fas fa-box' },
         { nome: 'Adicionar Produto', href: 'adicionar-produto.html', icone: 'fas fa-plus-circle' },
@@ -1136,3 +1137,309 @@ if (searchInput) {
         }
     });
 }
+
+/* * =====================================
+ * =====================================
+ * LÓGICA DO PDV (PONTO DE VENDA)
+ * =====================================
+ * ===================================== */
+
+// --- Variável global para o carrinho ---
+let carrinhoPDV = [];
+let totalVendaPDV = 0;
+
+// --- Elementos da página PDV ---
+const pagePDV = document.getElementById('pdv-page');
+const searchInputPDV = document.getElementById('buscar-produto-pdv');
+const suggestionsBoxPDV = document.getElementById('suggestions-box-pdv');
+const cartBodyPDV = document.getElementById('pdv-cart-body');
+const totalValorPDV = document.getElementById('pdv-total-valor');
+
+const tipoPagamentoPDV = document.getElementById('pdv-tipo-pagamento');
+const trocoContainerPDV = document.getElementById('pdv-troco-container');
+const valorPagoPDV = document.getElementById('pdv-valor-pago');
+const trocoHintPDV = document.getElementById('pdv-troco-hint');
+
+const btnFinalizarVenda = document.getElementById('btn-finalizar-venda');
+const btnCancelarVenda = document.getElementById('btn-cancelar-venda');
+
+// --- Funções do PDV ---
+
+/** Limpa o carrinho e reseta a tela */
+function limparVendaPDV() {
+    carrinhoPDV = [];
+    totalVendaPDV = 0;
+    if (cartBodyPDV) { // Verifica se estamos na página certa
+        cartBodyPDV.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Carrinho vazio</td></tr>';
+        totalValorPDV.textContent = 'R$ 0,00';
+        valorPagoPDV.value = '';
+        trocoHintPDV.textContent = 'Troco: R$ 0,00';
+        trocoHintPDV.style.color = 'var(--text-gray)';
+        searchInputPDV.value = '';
+        searchInputPDV.focus();
+    }
+}
+
+/** Calcula o troco baseado no valor pago */
+function calcularTrocoPDV() {
+    const valorPago = parseFloat(valorPagoPDV.value) || 0;
+    if (valorPago === 0) {
+        trocoHintPDV.textContent = 'Troco: R$ 0,00';
+        trocoHintPDV.style.color = 'var(--text-gray)';
+        return;
+    }
+    const troco = valorPago - totalVendaPDV;
+    if (troco >= 0) {
+        trocoHintPDV.textContent = `Troco: R$ ${troco.toFixed(2)}`;
+        trocoHintPDV.style.color = 'var(--primary-green)';
+    } else {
+        trocoHintPDV.textContent = `Faltam: R$ ${Math.abs(troco).toFixed(2)}`;
+        trocoHintPDV.style.color = 'var(--stock-low)'; // Vermelho
+    }
+}
+
+/** Desenha a tabela do carrinho com os itens e calcula o total */
+function atualizarCarrinhoPDV() {
+    if (carrinhoPDV.length === 0) {
+        cartBodyPDV.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Carrinho vazio</td></tr>';
+    } else {
+        cartBodyPDV.innerHTML = '';
+        totalVendaPDV = 0;
+        carrinhoPDV.forEach((item, index) => {
+            const itemTotal = item.venda * item.qtd_venda;
+            totalVendaPDV += itemTotal;
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${item.nome}</strong><br><small>SKU: ${item.sku}</small></td>
+                <td>
+                    <input type
+="number" value="${item.qtd_venda}" min="1" max="${item.qtd_estoque}" data-index="${index}" class="pdv-item-qtd" style="width: 60px; padding: 5px;">
+                </td>
+                <td>R$ ${item.venda.toFixed(2)}</td>
+                <td><strong>R$ ${itemTotal.toFixed(2)}</strong></td>
+                <td>
+                    <button class="btn-action delete" data-index="${index}">
+                        <i class="fas fa-trash-alt" style="margin-right: 0;"></i>
+                    </button>
+                </td>
+            `;
+            cartBodyPDV.appendChild(tr);
+        });
+    }
+    // Atualiza o total e recalcula o troco
+    totalValorPDV.textContent = `R$ ${totalVendaPDV.toFixed(2)}`;
+    if(tipoPagamentoPDV.value === 'dinheiro') {
+        calcularTrocoPDV();
+    }
+}
+
+/** Adiciona um produto ao carrinho ou incrementa a quantidade */
+function adicionarAoCarrinhoPDV(produto) {
+    // 1. Verifica se o produto tem estoque
+    if (produto.qtd <= 0) {
+        alert(`Produto "${produto.nome}" está sem estoque!`);
+        return;
+    }
+
+    // 2. Verifica se o item já está no carrinho
+    const itemExistente = carrinhoPDV.find(item => item.sku === produto.sku);
+    
+    if (itemExistente) {
+        // Se já existe, só adiciona 1 na quantidade
+        // Verifica o limite de estoque
+        if (itemExistente.qtd_venda < produto.qtd) { 
+            itemExistente.qtd_venda++;
+        } else {
+            alert(`Você não pode vender mais do que as ${produto.qtd} unidades em estoque.`);
+        }
+    } else {
+        // Se é novo, adiciona ao carrinho
+        carrinhoPDV.push({
+            sku: produto.sku,
+            nome: produto.nome,
+            venda: produto.venda,
+            custo: produto.custo, // Guarda o custo para relatórios futuros
+            qtd_estoque: produto.qtd, // Guarda o estoque original
+            qtd_venda: 1 // Começa com 1
+        });
+    }
+    
+    // 3. Atualiza a tabela
+    atualizarCarrinhoPDV();
+    
+    // 4. Limpa e foca a busca
+    searchInputPDV.value = '';
+    suggestionsBoxPDV.style.display = 'none';
+    searchInputPDV.focus();
+}
+
+// --- Listeners do PDV (Só rodam se estivermos na página PDV) ---
+if (pagePDV) {
+    
+    // Listener 1: Busca de Produto
+    searchInputPDV.addEventListener('focus', async () => {
+        // Garante que o cache de produtos está carregado
+        if (cacheProdutos.length === 0) {
+            const empresaId = getEmpresaId();
+            if (!empresaId) return;
+            const produtosRef = collection(db, "empresas", empresaId, "produtos");
+            const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
+            querySnapshot.forEach(docSnap => cacheProdutos.push(docSnap.data()));
+        }
+    });
+
+    searchInputPDV.addEventListener('keyup', (e) => {
+        const termoBusca = e.target.value.toLowerCase();
+        if (termoBusca.length < 1) return suggestionsBoxPDV.style.display = 'none';
+        
+        // Filtra produtos que batem com a busca E TÊM ESTOQUE
+        const sugestoes = cacheProdutos.filter(p => 
+            (p.nome.toLowerCase().includes(termoBusca) || p.sku.toLowerCase().startsWith(termoBusca)) &&
+            p.qtd > 0 
+        );
+        
+        suggestionsBoxPDV.innerHTML = '';
+        if (sugestoes.length > 0) {
+            sugestoes.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                // Mostra preço e estoque na sugestão
+                item.innerHTML = `<strong>${p.nome}</strong> <small>SKU: ${p.sku} (R$ ${p.venda.toFixed(2)}) (Estoque: ${p.qtd})</small>`;
+                item.addEventListener('click', () => {
+                    adicionarAoCarrinhoPDV(p);
+                });
+                suggestionsBoxPDV.appendChild(item);
+            });
+            suggestionsBoxPDV.style.display = 'block';
+        } else {
+            suggestionsBoxPDV.style.display = 'none';
+        }
+    });
+    
+    // Listener 2: Mudança no carrinho (excluir ou mudar qtd)
+    cartBodyPDV.addEventListener('click', (e) => {
+        // Se clicar no botão de excluir
+        if (e.target.closest('.delete')) {
+            const index = e.target.closest('.delete').dataset.index;
+            carrinhoPDV.splice(index, 1); // Remove o item do array
+            atualizarCarrinhoPDV();
+        }
+    });
+    
+    cartBodyPDV.addEventListener('change', (e) => {
+        // Se mudar o valor do input de quantidade
+        if (e.target.classList.contains('pdv-item-qtd')) {
+            const index = e.target.dataset.index;
+            let novaQtd = parseInt(e.target.value) || 1;
+            const item = carrinhoPDV[index];
+            
+            // Valida se a qtd não é maior que o estoque
+            if (novaQtd > item.qtd_estoque) {
+                alert(`Estoque máximo para este item é ${item.qtd_estoque}`);
+                novaQtd = item.qtd_estoque;
+                e.target.value = novaQtd;
+            }
+            
+            if (novaQtd <= 0) {
+                novaQtd = 1;
+                e.target.value = 1;
+            }
+            
+            item.qtd_venda = novaQtd;
+            atualizarCarrinhoPDV();
+        }
+    });
+
+    // Listener 3: Lógica de Pagamento e Troco
+    tipoPagamentoPDV.addEventListener('change', () => {
+        if (tipoPagamentoPDV.value === 'dinheiro') {
+            trocoContainerPDV.style.display = 'block'; // Mostra o campo de troco
+            valorPagoPDV.focus();
+        } else {
+            trocoContainerPDV.style.display = 'none'; // Esconde o campo de troco
+            valorPagoPDV.value = '';
+            trocoHintPDV.textContent = 'Troco: R$ 0,00';
+            trocoHintPDV.style.color = 'var(--text-gray)';
+        }
+    });
+    
+    valorPagoPDV.addEventListener('keyup', calcularTrocoPDV);
+
+    // Listener 4: Cancelar Venda
+    btnCancelarVenda.addEventListener('click', () => {
+        if (carrinhoPDV.length > 0 && confirm('Você tem certeza que deseja limpar o carrinho e cancelar esta venda?')) {
+            limparVendaPDV();
+        } else {
+            limparVendaPDV();
+        }
+    });
+    
+    // Listener 5: Finalizar Venda (O MAIS IMPORTANTE)
+    btnFinalizarVenda.addEventListener('click', async () => {
+        const empresaId = getEmpresaId();
+        if (carrinhoPDV.length === 0) {
+            return alert('O carrinho está vazio.');
+        }
+        
+        // Validação de pagamento em dinheiro
+        if (tipoPagamentoPDV.value === 'dinheiro') {
+            const valorPago = parseFloat(valorPagoPDV.value) || 0;
+            if (valorPago < totalVendaPDV) {
+                return alert('O valor pago é menor que o total da venda.');
+            }
+        }
+        
+        if (!confirm(`Finalizar venda de R$ ${totalVendaPDV.toFixed(2)}?`)) {
+            return;
+        }
+        
+        // Desabilita o botão para evitar clique duplo
+        btnFinalizarVenda.disabled = true;
+        btnFinalizarVenda.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+        
+        try {
+            const batch = writeBatch(db);
+            
+            // 1. Atualizar o estoque de cada produto
+            for (const item of carrinhoPDV) {
+                const produtoRef = doc(db, "empresas", empresaId, "produtos", item.sku);
+                // Decrementa o estoque
+                batch.update(produtoRef, { 
+                    qtd: increment(-item.qtd_venda) 
+                });
+            }
+            
+            // 2. Commitar as alterações no banco
+            await batch.commit();
+            
+            // 3. Registrar atividade
+            const tipoPagamentoTexto = tipoPagamentoPDV.options[tipoPagamentoPDV.selectedIndex].text;
+            await logActivity(
+                'fas fa-shopping-cart', 
+                'green', 
+                'Venda Realizada', 
+                `Venda de R$ ${totalVendaPDV.toFixed(2)} (${carrinhoPDV.length} itens). Pagamento: ${tipoPagamentoTexto}.`
+            );
+            
+            // 4. Sucesso
+            alert('Venda finalizada e estoque atualizado com sucesso!');
+            limparVendaPDV();
+            
+            // Recarrega o cache de produtos para ter o estoque atualizado
+            cacheProdutos = [];
+            
+        } catch (error) {
+            console.error("Erro ao finalizar venda: ", error);
+            alert("Erro ao finalizar a venda: " + error.message);
+        } finally {
+            // Reabilita o botão
+            btnFinalizarVenda.disabled = false;
+            btnFinalizarVenda.innerHTML = '<i class="fas fa-check-circle"></i> Finalizar Venda';
+        }
+    });
+    
+    // Limpa o carrinho ao carregar a página
+    limparVendaPDV();
+}
+// --- FIM DA LÓGICA DO PDV ---
