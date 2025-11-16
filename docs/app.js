@@ -427,7 +427,67 @@ async function carregarDashboard() {
             });
         } catch (e) { console.error(e); }
     }
+    // --- NOVA LÓGICA PARA ABRIR CAIXA (FUNDO DE TROCO) ---
+    const btnAbrirCaixa = document.getElementById('btn-abrir-caixa');
+    if (btnAbrirCaixa) {
+        btnAbrirCaixa.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            // 1. Definir o ID do dia
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            const dataID = `${ano}-${mes}-${dia}`;
+            
+            const empresaId = getEmpresaId();
+            const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
+
+            try {
+                // 2. Verificar se o fundo de troco já existe
+                const docSnap = await getDoc(fechamentoRef);
+                
+                if (!docSnap.exists() || docSnap.data().fundo_troco === undefined) {
+                    // 3. Se não existe, perguntar ao usuário
+                    const valorInput = prompt("Qual o valor inicial do caixa (fundo de troco)?", "50.00");
+                    
+                    if (valorInput === null) { // Usuário clicou em "Cancelar"
+                        return; 
+                    }
+                    
+                    const valorInicial = parseFloat(valorInput.replace(',', '.')) || 0;
+                    
+                    if (valorInicial < 0) {
+                        alert("O valor não pode ser negativo.");
+                        return;
+                    }
+
+                    // 4. Salvar o valor no Firebase
+                    await setDoc(fechamentoRef, { 
+                        fundo_troco: valorInicial,
+                        // Garante que os outros campos existam para o relatório não falhar
+                        total: increment(0),
+                        dinheiro: increment(0),
+                        cartao: increment(0),
+                        pix: increment(0),
+                        data_fechamento: dataID,
+                        timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
+                    }, { merge: true });
+
+                    await logActivity('fas fa-dollar-sign', 'blue', 'Caixa Aberto', `Caixa aberto com fundo de troco de R$ ${valorInicial.toFixed(2)}.`);
+                }
+                
+                // 5. Redirecionar para o PDV
+                window.location.href = 'pdv.html';
+
+            } catch (error) {
+                alert("Erro ao abrir o caixa: " + error.message);
+            }
+        });
+    }
+    // --- FIM DA NOVA LÓGICA ---
 }
+
 
 async function carregarRelatorioVendas() {
     const salesReportBody = document.getElementById('sales-report-body');
@@ -444,14 +504,15 @@ async function carregarRelatorioVendas() {
             const v = docSnap.data();
             const [ano, mes, dia] = v.data_fechamento.split('-');
             const dataFormatada = `${dia}/${mes}/${ano}`;
-            salesReportBody.innerHTML += `
-                <tr>
-                    <td><strong>${dataFormatada}</strong></td>
-                    <td class="total-col">R$ ${v.total.toFixed(2)}</td>
-                    <td>R$ ${v.cartao.toFixed(2)}</td>
-                    <td>R$ ${v.dinheiro.toFixed(2)}</td>
-                    <td>R$ ${v.pix.toFixed(2)}</td>
-                </tr>`;
+          salesReportBody.innerHTML += `
+            <tr>
+                <td><strong>${dataFormatada}</strong></td>
+                <td class="total-col">R$ ${v.total.toFixed(2)}</td>
+                <td>R$ ${v.cartao.toFixed(2)}</td>
+                <td>R$ ${v.dinheiro.toFixed(2)}</td>
+                <td>R$ ${v.pix.toFixed(2)}</td>
+                <td>R$ ${(v.fundo_troco || 0).toFixed(2)}</td>
+            </tr>`;
         });
     } catch (e) { console.error(e); }
 }
