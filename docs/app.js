@@ -778,14 +778,14 @@ const logoutButton = document.querySelector('.sidebar-footer a');
 if (logoutButton) {
     logoutButton.addEventListener('click', async (event) => { // A variável é 'event'
         
-        event.preventDefault(); // <-- CORRIGIDO! (antes era 'e.preventDefault()')
+        event.preventDefault(); // Garantir que usa 'event'
         
         if (confirm('Você tem certeza que deseja sair?')) {
             try {
                 await signOut(auth);
                 localStorage.removeItem('empresaId'); 
                 localStorage.removeItem('currentProfile'); 
-                window.location.href = 'index.html';
+                window.location.href = 'index.html'; // Manda para o index
             } catch (error) {
                 alert("Erro ao sair: " + error.message);
             }
