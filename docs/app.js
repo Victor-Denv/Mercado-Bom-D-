@@ -1050,25 +1050,17 @@ if (formAddPerfil) {
 }
 
 // --- FORM EDITAR PERFIL ---
+// --- FORM EDITAR PERFIL (VERSÃO SEM UPLOAD DE FOTO) ---
 const formEditPerfil = document.getElementById('form-edit-perfil');
 if (formEditPerfil) {
-    const fotoInput = document.getElementById('profile-pic-input');
-    const removeBtn = document.getElementById('profile-pic-remove');
-    const preview = document.getElementById('profile-pic-preview');
-    
-    fotoInput.addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        try {
-            fotoBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
-            preview.src = fotoBase64;
-        } catch (e) { alert('Erro ao processar imagem.'); }
-    });
-    removeBtn.addEventListener('click', () => {
-        preview.src = PLACEHOLDER_IMG;
-        fotoBase64 = "REMOVER";
-        fotoInput.value = null;
-    });
+    // Remove os listeners de foto, pois não vamos usar
+    // const fotoInput = document.getElementById('profile-pic-input');
+    // const removeBtn = document.getElementById('profile-pic-remove');
+    // const preview = document.getElementById('profile-pic-preview');
+    // fotoInput.addEventListener('change', ...);
+    // removeBtn.addEventListener('click', ...);
+
+    // Listener de SUBMIT (Salvar)
     formEditPerfil.addEventListener('submit', async (e) => {
         e.preventDefault();
         const empresaId = getEmpresaId();
@@ -1076,30 +1068,32 @@ if (formEditPerfil) {
         const perfilId = urlParams.get('id');
         const nomeNovo = document.getElementById('nome-perfil').value.trim();
         
+        // No Firebase, o ID do documento de perfil É o nome.
+        // Se o usuário tentar mudar o nome, vai quebrar a lógica.
         if (nomeNovo !== perfilId) {
-           return alert("Erro: Mudar o nome do perfil não é permitido.");
+           alert("Erro: Mudar o nome do perfil não é permitido. Você pode excluir este e criar um novo.");
+           document.getElementById('nome-perfil').value = perfilId; // Restaura o nome original
+           return; 
         }
+        
         try {
-            let urlParaSalvar = fotoAtualURL; 
-            if (fotoBase64 && fotoBase64 !== "REMOVER") {
-                const storageRef = ref(storage, `empresas/${empresaId}/perfis/${perfilId}.jpg`);
-                const snapshot = await uploadString(storageRef, fotoBase64, 'data_url');
-                urlParaSalvar = await getDownloadURL(snapshot.ref);
-            } else if (fotoBase64 === "REMOVER") {
-                urlParaSalvar = PLACEHOLDER_IMG;
-                if (fotoAtualURL && fotoAtualURL.includes('firebasestorage')) {
-                    try { await deleteObject(ref(storage, fotoAtualURL)); } catch(e) { console.warn("Foto antiga não existia", e); }
-                }
-            }
+            // Como não há foto, apenas verificamos o nome e salvamos.
+            // O 'updateDoc' aqui é só para garantir, mas o nome não deve mudar.
             const perfilRef = doc(db, "empresas", empresaId, "perfis", perfilId);
-            await updateDoc(perfilRef, { nome: nomeNovo, foto_perfil: urlParaSalvar });
-            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado.`);
+            await updateDoc(perfilRef, { 
+                nome: nomeNovo 
+                // A linha 'foto_perfil' foi removida
+            });
+
+            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado (sem foto).`);
             alert('Perfil salvo!');
             window.location.href = 'configuracoes.html';
-        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+
+        } catch (e) { 
+            alert('Erro ao salvar: ' + e.message); 
+        }
     });
 }
-
 // --- AUTOCOMPLETE (Listeners) ---
 const searchInput = document.getElementById('buscar-produto');
 if (searchInput) {
