@@ -1083,25 +1083,62 @@ tbody td {
  * Ajustes Finais de Responsividade
  * =====================================
  */
-@media (max-width: 1200px) {
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .quick-access-grid.five-cols {
-        grid-template-columns: repeat(3, 1fr); 
-    }
-}
 
+/* --- Para Tablets (Telas médias) --- */
 @media (max-width: 992px) {
+    
+    /* 1. Esconde o menu lateral */
+    .sidebar {
+        display: none;
+    }
+    
+    /* 2. Faz o conteúdo ocupar a tela toda */
+    .content {
+        margin-left: 0;
+        padding: 20px;
+    }
+
+    /* 3. Ajusta o header */
+    .top-header {
+        margin: -10px -10px 20px -10px;
+    }
+    
+    /* 4. Empilha grids (Dashboard, Config, PDV) */
     .page-grid {
         grid-template-columns: 1fr; 
+    }
+    .pdv-layout {
+        flex-direction: column;
+    }
+    .pdv-pagamento-col {
+        width: 100%;
+        flex-basis: auto;
+        position: static;
+    }
+
+    /* 5. Ajusta os cards de stats */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
     .quick-access-grid.five-cols {
         grid-template-columns: repeat(2, 1fr); 
     }
 }
 
+/* --- Para Celulares (Telas pequenas) --- */
 @media (max-width: 768px) {
+    .content {
+        padding: 10px; /* Menos padding */
+    }
+
+    /* 1. Empilha o header (busca e perfil) */
+    .top-header {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+    }
+
+    /* 2. Tudo vira 1 coluna */
     .stats-grid {
         grid-template-columns: 1fr;
     }
@@ -1109,4 +1146,93 @@ tbody td {
     .quick-access-grid.five-cols {
         grid-template-columns: 1fr; 
     }
+
+    /* 3. Ajusta colunas de formulário */
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* =====================================
+ * REMOÇÃO DE FOTOS DE PERFIL
+ * ===================================== */
+#header-profile-pic,         /* Esconde a foto do cabeçalho */
+.profile-card-pic,          /* Esconde a foto da seleção de perfil */
+.profile-list li.profile-item img, /* Esconde a foto da lista em Configurações */
+.profile-pic-container,     /* Esconde a foto da página Editar Perfil */
+.dropdown-avatar             /* Esconde a foto no menu dropdown */
+{
+    display: none !important;
+}
+
+/* * =====================================
+ * Estilos para o PDV (Ponto de Venda)
+ * =====================================
+ */
+.pdv-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+/* Coluna da esquerda (carrinho) */
+.pdv-venda-col {
+    flex-grow: 1;
+    flex-basis: 65%;
+}
+
+/* Coluna da direita (pagamento) */
+.pdv-pagamento-col {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: 35%;
+    position: sticky; /* Fica fixo ao rolar */
+    top: 20px;
+}
+
+/* Caixa de Total */
+.pdv-total-display {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.pdv-total-display span {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    text-transform: uppercase;
+}
+
+.pdv-total-display strong {
+    display: block;
+    font-size: 2.5rem;
+    color: var(--primary-green);
+    line-height: 1.2;
+}
+
+/* Ajuste no botão de excluir do carrinho */
+#pdv-cart-table .btn-action.delete {
+    font-size: 1rem;
+    padding: 8px 10px;
+}
+
+/* Ajuste para telas menores (empilha as colunas) */
+@media (max-width: 992px) {
+    .pdv-layout {
+        flex-direction: column;
+    }
+    .pdv-pagamento-col {
+        width: 100%;
+        flex-basis: auto;
+        position: static;
+    }
+}
+
+/* Esconde o ícone de sino (notificações) */
+.user-info .fa-bell {
+    display: none;
 }

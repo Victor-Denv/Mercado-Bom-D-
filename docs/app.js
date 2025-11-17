@@ -18,7 +18,7 @@ import {
 import { auth, db } from './firebase-config.js'; // Note: 'storage' foi removido daqui
 
 // --- CONSTANTES GLOBAIS ---
-const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
+const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
 let cacheCategorias = [];
 let deleteConfig = {}; 
@@ -427,7 +427,67 @@ async function carregarDashboard() {
             });
         } catch (e) { console.error(e); }
     }
+    // --- NOVA LÓGICA PARA ABRIR CAIXA (FUNDO DE TROCO) ---
+    const btnAbrirCaixa = document.getElementById('btn-abrir-caixa');
+    if (btnAbrirCaixa) {
+        btnAbrirCaixa.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            // 1. Definir o ID do dia
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            const dataID = `${ano}-${mes}-${dia}`;
+            
+            const empresaId = getEmpresaId();
+            const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
+
+            try {
+                // 2. Verificar se o fundo de troco já existe
+                const docSnap = await getDoc(fechamentoRef);
+                
+                if (!docSnap.exists() || docSnap.data().fundo_troco === undefined) {
+                    // 3. Se não existe, perguntar ao usuário
+                    const valorInput = prompt("Qual o valor inicial do caixa (fundo de troco)?", "50.00");
+                    
+                    if (valorInput === null) { // Usuário clicou em "Cancelar"
+                        return; 
+                    }
+                    
+                    const valorInicial = parseFloat(valorInput.replace(',', '.')) || 0;
+                    
+                    if (valorInicial < 0) {
+                        alert("O valor não pode ser negativo.");
+                        return;
+                    }
+
+                    // 4. Salvar o valor no Firebase
+                    await setDoc(fechamentoRef, { 
+                        fundo_troco: valorInicial,
+                        // Garante que os outros campos existam para o relatório não falhar
+                        total: increment(0),
+                        dinheiro: increment(0),
+                        cartao: increment(0),
+                        pix: increment(0),
+                        data_fechamento: dataID,
+                        timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
+                    }, { merge: true });
+
+                    await logActivity('fas fa-dollar-sign', 'blue', 'Caixa Aberto', `Caixa aberto com fundo de troco de R$ ${valorInicial.toFixed(2)}.`);
+                }
+                
+                // 5. Redirecionar para o PDV
+                window.location.href = 'pdv.html';
+
+            } catch (error) {
+                alert("Erro ao abrir o caixa: " + error.message);
+            }
+        });
+    }
+    // --- FIM DA NOVA LÓGICA ---
 }
+
 
 async function carregarRelatorioVendas() {
     const salesReportBody = document.getElementById('sales-report-body');
@@ -444,14 +504,15 @@ async function carregarRelatorioVendas() {
             const v = docSnap.data();
             const [ano, mes, dia] = v.data_fechamento.split('-');
             const dataFormatada = `${dia}/${mes}/${ano}`;
-            salesReportBody.innerHTML += `
-                <tr>
-                    <td><strong>${dataFormatada}</strong></td>
-                    <td class="total-col">R$ ${v.total.toFixed(2)}</td>
-                    <td>R$ ${v.cartao.toFixed(2)}</td>
-                    <td>R$ ${v.dinheiro.toFixed(2)}</td>
-                    <td>R$ ${v.pix.toFixed(2)}</td>
-                </tr>`;
+          salesReportBody.innerHTML += `
+            <tr>
+                <td><strong>${dataFormatada}</strong></td>
+                <td class="total-col">R$ ${v.total.toFixed(2)}</td>
+                <td>R$ ${v.cartao.toFixed(2)}</td>
+                <td>R$ ${v.dinheiro.toFixed(2)}</td>
+                <td>R$ ${v.pix.toFixed(2)}</td>
+                <td>R$ ${(v.fundo_troco || 0).toFixed(2)}</td>
+            </tr>`;
         });
     } catch (e) { console.error(e); }
 }
@@ -609,13 +670,13 @@ function setupGlobalSearch() {
     const globalSearchResults = document.getElementById('global-search-results');
     if (!globalSearchInput) return;
     const paginasDoSite = [
+        { nome: 'Abrir Caixa (PDV)', href: 'pdv.html', icone: 'fas fa-cash-register' },
         { nome: 'Dashboard', href: 'dashboard.html', icone: 'fas fa-home' },
         { nome: 'Produtos', href: 'produtos.html', icone: 'fas fa-box' },
         { nome: 'Adicionar Produto', href: 'adicionar-produto.html', icone: 'fas fa-plus-circle' },
         { nome: 'Categorias', href: 'categorias.html', icone: 'fas fa-tags' },
         { nome: 'Registrar Entrada', href: 'registrar-entrada.html', icone: 'fas fa-arrow-down' },
         { nome: 'Registrar Perda/Ajuste', href: 'registrar-saida.html', icone: 'fas fa-arrow-up' },
-        { nome: 'Fechar Caixa (Vendas)', href: 'fechamento-caixa.html', icone: 'fas fa-wallet' },
         { nome: 'Relatórios de Vendas', href: 'relatorios-vendas.html', icone: 'fas fa-chart-bar' },
         { nome: 'Relatório: Estoque Baixo', href: 'relatorios-estoque-baixo.html', icone: 'fas fa-exclamation-triangle' },
         { nome: 'Relatório: Inventário', href: 'relatorios-inventario.html', icone: 'fas fa-dollar-sign' },
@@ -776,21 +837,22 @@ if (profileDropdown) {
 // --- BOTÃO SAIR (SIDEBAR) ---
 const logoutButton = document.querySelector('.sidebar-footer a');
 if (logoutButton) {
-    logoutButton.addEventListener('click', async (event) => {
-        e.preventDefault(); 
+    logoutButton.addEventListener('click', async (event) => { // A variável é 'event'
+        
+        event.preventDefault(); // Garantir que usa 'event'
+        
         if (confirm('Você tem certeza que deseja sair?')) {
             try {
                 await signOut(auth);
                 localStorage.removeItem('empresaId'); 
                 localStorage.removeItem('currentProfile'); 
-                window.location.href = 'index.html';
+                window.location.href = 'index.html'; // Manda para o index
             } catch (error) {
                 alert("Erro ao sair: " + error.message);
             }
         }
     });
 }
-
 // --- MODAL DE CONFIRMAÇÃO (Listeners) ---
 const modalBtnCancel = document.getElementById('modal-btn-cancel');
 const modalBtnConfirm = document.getElementById('modal-btn-confirm');
@@ -1050,25 +1112,17 @@ if (formAddPerfil) {
 }
 
 // --- FORM EDITAR PERFIL ---
+// --- FORM EDITAR PERFIL (VERSÃO SEM UPLOAD DE FOTO) ---
 const formEditPerfil = document.getElementById('form-edit-perfil');
 if (formEditPerfil) {
-    const fotoInput = document.getElementById('profile-pic-input');
-    const removeBtn = document.getElementById('profile-pic-remove');
-    const preview = document.getElementById('profile-pic-preview');
-    
-    fotoInput.addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        try {
-            fotoBase64 = await resizeAndEncodeImage(file, 200, 200, 0.8);
-            preview.src = fotoBase64;
-        } catch (e) { alert('Erro ao processar imagem.'); }
-    });
-    removeBtn.addEventListener('click', () => {
-        preview.src = PLACEHOLDER_IMG;
-        fotoBase64 = "REMOVER";
-        fotoInput.value = null;
-    });
+    // Remove os listeners de foto, pois não vamos usar
+    // const fotoInput = document.getElementById('profile-pic-input');
+    // const removeBtn = document.getElementById('profile-pic-remove');
+    // const preview = document.getElementById('profile-pic-preview');
+    // fotoInput.addEventListener('change', ...);
+    // removeBtn.addEventListener('click', ...);
+
+    // Listener de SUBMIT (Salvar)
     formEditPerfil.addEventListener('submit', async (e) => {
         e.preventDefault();
         const empresaId = getEmpresaId();
@@ -1076,30 +1130,32 @@ if (formEditPerfil) {
         const perfilId = urlParams.get('id');
         const nomeNovo = document.getElementById('nome-perfil').value.trim();
         
+        // No Firebase, o ID do documento de perfil É o nome.
+        // Se o usuário tentar mudar o nome, vai quebrar a lógica.
         if (nomeNovo !== perfilId) {
-           return alert("Erro: Mudar o nome do perfil não é permitido.");
+           alert("Erro: Mudar o nome do perfil não é permitido. Você pode excluir este e criar um novo.");
+           document.getElementById('nome-perfil').value = perfilId; // Restaura o nome original
+           return; 
         }
+        
         try {
-            let urlParaSalvar = fotoAtualURL; 
-            if (fotoBase64 && fotoBase64 !== "REMOVER") {
-                const storageRef = ref(storage, `empresas/${empresaId}/perfis/${perfilId}.jpg`);
-                const snapshot = await uploadString(storageRef, fotoBase64, 'data_url');
-                urlParaSalvar = await getDownloadURL(snapshot.ref);
-            } else if (fotoBase64 === "REMOVER") {
-                urlParaSalvar = PLACEHOLDER_IMG;
-                if (fotoAtualURL && fotoAtualURL.includes('firebasestorage')) {
-                    try { await deleteObject(ref(storage, fotoAtualURL)); } catch(e) { console.warn("Foto antiga não existia", e); }
-                }
-            }
+            // Como não há foto, apenas verificamos o nome e salvamos.
+            // O 'updateDoc' aqui é só para garantir, mas o nome não deve mudar.
             const perfilRef = doc(db, "empresas", empresaId, "perfis", perfilId);
-            await updateDoc(perfilRef, { nome: nomeNovo, foto_perfil: urlParaSalvar });
-            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado.`);
+            await updateDoc(perfilRef, { 
+                nome: nomeNovo 
+                // A linha 'foto_perfil' foi removida
+            });
+
+            await logActivity('fas fa-user-edit', 'blue', 'Perfil Editado', `O perfil "${nomeNovo}" foi atualizado (sem foto).`);
             alert('Perfil salvo!');
             window.location.href = 'configuracoes.html';
-        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+
+        } catch (e) { 
+            alert('Erro ao salvar: ' + e.message); 
+        }
     });
 }
-
 // --- AUTOCOMPLETE (Listeners) ---
 const searchInput = document.getElementById('buscar-produto');
 if (searchInput) {
@@ -1141,4 +1197,457 @@ if (searchInput) {
             suggestionsBox.style.display = 'none';
         }
     });
+}
+
+/* * =====================================
+ * =====================================
+ * LÓGICA DO PDV (PONTO DE VENDA)
+ * =====================================
+ * ===================================== */
+
+// --- Elementos da página PDV ---
+// Movemos as definições para dentro do "if" para garantir que a página existe
+const pagePDV = document.getElementById('pdv-page');
+
+if (pagePDV) { // SÓ EXECUTA O CÓDIGO SE ESTIVER NA PÁGINA PDV
+    
+    // --- Variável global para o carrinho ---
+    let carrinhoPDV = [];
+    let totalVendaPDV = 0;
+
+    // --- Elementos ---
+    const searchInputPDV = document.getElementById('buscar-produto-pdv');
+    const suggestionsBoxPDV = document.getElementById('suggestions-box-pdv');
+    const cartBodyPDV = document.getElementById('pdv-cart-body');
+    const totalValorPDV = document.getElementById('pdv-total-valor');
+
+    const tipoPagamentoPDV = document.getElementById('pdv-tipo-pagamento');
+    const trocoContainerPDV = document.getElementById('pdv-troco-container');
+    const valorPagoPDV = document.getElementById('pdv-valor-pago');
+    const trocoHintPDV = document.getElementById('pdv-troco-hint');
+
+    const btnFinalizarVenda = document.getElementById('btn-finalizar-venda');
+    const btnCancelarVenda = document.getElementById('btn-cancelar-venda');
+
+    // --- Funções do PDV ---
+
+    /** Limpa o carrinho e reseta a tela */
+    function limparVendaPDV() {
+        carrinhoPDV = [];
+        totalVendaPDV = 0;
+        cartBodyPDV.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Carrinho vazio</td></tr>';
+        totalValorPDV.textContent = 'R$ 0,00';
+        valorPagoPDV.value = '';
+        trocoHintPDV.textContent = 'Troco: R$ 0,00';
+        trocoHintPDV.style.color = 'var(--text-gray)';
+        searchInputPDV.value = '';
+        searchInputPDV.focus();
+    }
+
+    /** Calcula o troco baseado no valor pago */
+    function calcularTrocoPDV() {
+        const valorPago = parseFloat(valorPagoPDV.value) || 0;
+        if (valorPago === 0 && totalVendaPDV === 0) {
+            trocoHintPDV.textContent = 'Troco: R$ 0,00';
+            trocoHintPDV.style.color = 'var(--text-gray)';
+            return;
+        }
+        
+        const troco = valorPago - totalVendaPDV;
+
+        if (valorPago > 0) {
+            if (troco >= 0) {
+                trocoHintPDV.textContent = `Troco: R$ ${troco.toFixed(2)}`;
+                trocoHintPDV.style.color = 'var(--primary-green)';
+            } else {
+                trocoHintPDV.textContent = `Faltam: R$ ${Math.abs(troco).toFixed(2)}`;
+                trocoHintPDV.style.color = 'var(--stock-low)'; // Vermelho
+            }
+        } else {
+             trocoHintPDV.textContent = 'Troco: R$ 0,00';
+             trocoHintPDV.style.color = 'var(--text-gray)';
+        }
+    }
+
+    /** Desenha a tabela do carrinho com os itens e calcula o total */
+    function atualizarCarrinhoPDV() {
+        if (carrinhoPDV.length === 0) {
+            cartBodyPDV.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Carrinho vazio</td></tr>';
+            totalVendaPDV = 0; // Garante que o total é zero
+        } else {
+            cartBodyPDV.innerHTML = '';
+            totalVendaPDV = 0;
+            carrinhoPDV.forEach((item, index) => {
+                const itemTotal = item.venda * item.qtd_venda;
+                totalVendaPDV += itemTotal;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${item.nome}</strong><br><small>SKU: ${item.sku}</small></td>
+                    <td>
+                        <input type="number" value="${item.qtd_venda}" min="1" max="${item.qtd_estoque}" data-index="${index}" class="pdv-item-qtd" style="width: 60px; padding: 5px;">
+                    </td>
+                    <td>R$ ${item.venda.toFixed(2)}</td>
+                    <td><strong>R$ ${itemTotal.toFixed(2)}</strong></td>
+                    <td>
+                        <button class="btn-action delete" data-index="${index}">
+                            <i class="fas fa-trash-alt" style="margin-right: 0;"></i>
+                        </button>
+                    </td>
+                `;
+                cartBodyPDV.appendChild(tr);
+            });
+        }
+        totalValorPDV.textContent = `R$ ${totalVendaPDV.toFixed(2)}`;
+        if(tipoPagamentoPDV.value === 'dinheiro') {
+            calcularTrocoPDV();
+        }
+    }
+
+    /** Adiciona um produto ao carrinho ou incrementa a quantidade */
+    function adicionarAoCarrinhoPDV(produto) {
+        // 1. Verifica se o produto tem estoque
+        if (produto.qtd <= 0) {
+            alert(`Produto "${produto.nome}" está sem estoque!`);
+            return;
+        }
+
+        const itemExistente = carrinhoPDV.find(item => item.sku === produto.sku);
+        
+        if (itemExistente) {
+            if (itemExistente.qtd_venda < produto.qtd) { 
+                itemExistente.qtd_venda++;
+            } else {
+                alert(`Você não pode vender mais do que as ${produto.qtd} unidades em estoque.`);
+            }
+        } else {
+            carrinhoPDV.push({
+                sku: produto.sku,
+                nome: produto.nome,
+                venda: produto.venda,
+                custo: produto.custo,
+                qtd_estoque: produto.qtd,
+                qtd_venda: 1
+            });
+        }
+        
+        atualizarCarrinhoPDV();
+        searchInputPDV.value = '';
+        suggestionsBoxPDV.style.display = 'none';
+        searchInputPDV.focus();
+    }
+    
+    /** Garante que o cache de produtos está carregado */
+    async function carregarCacheParaPDV() {
+        if (cacheProdutos.length === 0) {
+            console.log("PDV: Cache de produtos vazio. Carregando...");
+            const empresaId = getEmpresaId();
+            if (!empresaId) return;
+            const produtosRef = collection(db, "empresas", empresaId, "produtos");
+            const querySnapshot = await getDocs(query(produtosRef, orderBy("nome", "asc")));
+            querySnapshot.forEach(docSnap => cacheProdutos.push(docSnap.data()));
+            console.log("PDV: Cache carregado com", cacheProdutos.length, "produtos.");
+        } else {
+             console.log("PDV: Cache já continha", cacheProdutos.length, "produtos.");
+        }
+    }
+
+    // --- Listeners do PDV ---
+    
+    // Listener 1: Busca de Produto (CORRIGIDO)
+    searchInputPDV.addEventListener('keyup', async (e) => {
+        // Garante que o cache está carregado ANTES de tentar buscar
+        await carregarCacheParaPDV();
+        
+        const termoBusca = e.target.value.toLowerCase();
+        if (termoBusca.length < 1) {
+            suggestionsBoxPDV.style.display = 'none';
+            return;
+        }
+        
+        const sugestoes = cacheProdutos.filter(p => 
+            (p.nome.toLowerCase().includes(termoBusca) || p.sku.toLowerCase().startsWith(termoBusca)) &&
+            p.qtd > 0 
+        );
+        
+        suggestionsBoxPDV.innerHTML = '';
+        if (sugestoes.length > 0) {
+            sugestoes.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.innerHTML = `<strong>${p.nome}</strong> <small>SKU: ${p.sku} (R$ ${p.venda.toFixed(2)}) (Estoque: ${p.qtd})</small>`;
+                item.addEventListener('click', () => {
+                    adicionarAoCarrinhoPDV(p);
+                });
+                suggestionsBoxPDV.appendChild(item);
+            });
+            suggestionsBoxPDV.style.display = 'block';
+        } else {
+            suggestionsBoxPDV.style.display = 'none';
+        }
+    });
+    
+    // Listener 2: Mudança no carrinho (excluir ou mudar qtd)
+    cartBodyPDV.addEventListener('click', (e) => {
+        if (e.target.closest('.delete')) {
+            const index = e.target.closest('.delete').dataset.index;
+            carrinhoPDV.splice(index, 1);
+            atualizarCarrinhoPDV();
+        }
+    });
+    
+    cartBodyPDV.addEventListener('change', (e) => {
+        if (e.target.classList.contains('pdv-item-qtd')) {
+            const index = e.target.dataset.index;
+            let novaQtd = parseInt(e.target.value) || 1;
+            const item = carrinhoPDV[index];
+            
+            if (novaQtd > item.qtd_estoque) {
+                alert(`Estoque máximo para este item é ${item.qtd_estoque}`);
+                novaQtd = item.qtd_estoque;
+                e.target.value = novaQtd;
+            }
+            if (novaQtd <= 0) {
+                novaQtd = 1;
+                e.target.value = 1;
+            }
+            item.qtd_venda = novaQtd;
+            atualizarCarrinhoPDV();
+        }
+    });
+
+    // Listener 3: Lógica de Pagamento e Troco
+    tipoPagamentoPDV.addEventListener('change', () => {
+        if (tipoPagamentoPDV.value === 'dinheiro') {
+            trocoContainerPDV.style.display = 'block';
+            valorPagoPDV.focus();
+        } else {
+            trocoContainerPDV.style.display = 'none';
+            valorPagoPDV.value = '';
+            trocoHintPDV.textContent = 'Troco: R$ 0,00';
+            trocoHintPDV.style.color = 'var(--text-gray)';
+        }
+    });
+    
+    valorPagoPDV.addEventListener('keyup', calcularTrocoPDV);
+
+    // Listener 4: Cancelar Venda (CORRIGIDO)
+    btnCancelarVenda.addEventListener('click', () => {
+        if (carrinhoPDV.length > 0) {
+            if (confirm('Você tem certeza que deseja limpar o carrinho e cancelar esta venda?')) {
+                limparVendaPDV();
+            }
+        } else {
+            limparVendaPDV(); // Se já está vazio, apenas reseta os campos
+        }
+    });
+    
+   // Listener 5: Finalizar Venda (VERSÃO 2.1 - CORRIGE RELATÓRIOS)
+    btnFinalizarVenda.addEventListener('click', async () => {
+        const empresaId = getEmpresaId();
+        if (carrinhoPDV.length === 0) {
+            return alert('O carrinho está vazio.');
+        }
+        
+        const tipoPagamento = tipoPagamentoPDV.value; // 'dinheiro', 'cartao', 'pix'
+        
+        if (tipoPagamento === 'dinheiro') {
+            const valorPago = parseFloat(valorPagoPDV.value) || 0;
+            if (valorPago < totalVendaPDV) {
+                return alert('O valor pago é menor que o total da venda.');
+            }
+        }
+        
+        if (!confirm(`Finalizar venda de R$ ${totalVendaPDV.toFixed(2)}?`)) {
+            return;
+        }
+        
+        btnFinalizarVenda.disabled = true;
+        btnFinalizarVenda.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+        
+        try {
+            const batch = writeBatch(db);
+            
+            // 1. Atualizar o estoque de cada produto
+            for (const item of carrinhoPDV) {
+                const produtoRef = doc(db, "empresas", empresaId, "produtos", item.sku);
+                batch.update(produtoRef, { 
+                    qtd: increment(-item.qtd_venda) 
+                });
+            }
+
+            // 2. ATUALIZAR O TOTAL DE VENDAS DO DIA
+            const hoje = new Date();
+            const ano = hoje.getFullYear();
+            const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+            const dia = String(hoje.getDate()).padStart(2, '0');
+            const dataID = `${ano}-${mes}-${dia}`;
+
+            const fechamentoRef = doc(db, "empresas", empresaId, "fechamentos", dataID);
+
+            // --- ESTA É A ALTERAÇÃO ---
+            // Agora, garantimos que os 3 campos de pagamento são incrementados,
+            // mesmo que seja com 0, para que eles existam no documento.
+            const incrementoVenda = {
+                total: increment(totalVendaPDV),
+                dinheiro: increment(tipoPagamento === 'dinheiro' ? totalVendaPDV : 0),
+                cartao: increment(tipoPagamento === 'cartao' ? totalVendaPDV : 0),
+                pix: increment(tipoPagamento === 'pix' ? totalVendaPDV : 0),
+                data_fechamento: dataID,
+                timestamp: Timestamp.fromDate(new Date(dataID + "T12:00:00"))
+            };
+            // --- FIM DA ALTERAÇÃO ---
+
+            // Usa 'set' com 'merge' para criar ou atualizar
+            batch.set(fechamentoRef, incrementoVenda, { merge: true });
+            
+            // 3. Commitar as alterações no banco
+            await batch.commit();
+            
+            // 4. Registrar atividade
+            const tipoPagamentoTexto = tipoPagamentoPDV.options[tipoPagamentoPDV.selectedIndex].text;
+            await logActivity(
+                'fas fa-shopping-cart', 
+                'green', 
+                'Venda Realizada', 
+                `Venda de R$ ${totalVendaPDV.toFixed(2)} (${carrinhoPDV.length} itens). Pagamento: ${tipoPagamentoTexto}.`
+            );
+            
+            // 5. Sucesso
+            alert('Venda finalizada! Estoque e Totais do Dia atualizados.');
+            limparVendaPDV();
+            cacheProdutos = []; 
+            
+        } catch (error) {
+            console.error("Erro ao finalizar venda: ", error);
+            alert("Erro ao finalizar a venda: " + error.message);
+        } finally {
+            btnFinalizarVenda.disabled = false;
+            btnFinalizarVenda.innerHTML = '<i class="fas fa-check-circle"></i> Finalizar Venda';
+        }
+    });
+    
+    // Limpa o carrinho ao carregar a página
+    limparVendaPDV();
+}
+// --- FIM DA LÓGICA DO PDV ---
+
+
+/* * =====================================
+ * =====================================
+ * LÓGICA DA ZONA DE PERIGO (CONFIGURAÇÕES)
+ * =====================================
+ * ===================================== */
+
+// --- Botões da página de Configurações ---
+const pageConfig = document.getElementById('form-config-mercado'); // Usamos um ID da página de config
+
+if (pageConfig) { // Só executa se estiver na página de Configurações
+    
+    // --- 1. Botão Exportar CSV ---
+    // (Não existe no seu HTML, vamos adicionar um ID)
+    const btnExportar = document.querySelector('.btn-secondary.btn-danger + .btn-secondary'); // Seletor complexo, melhor adicionar ID
+    const btnLimpar = document.getElementById('btn-limpar-sistema');
+
+    // Função para converter dados para CSV
+    function convertToCSV(data, headers) {
+        const headerRow = headers.join(';');
+        const rows = data.map(item => {
+            return headers.map(header => {
+                let cell = item[header] === null || item[header] === undefined ? '' : item[header];
+                cell = String(cell).replace(/"/g, '""'); // Escapa aspas
+                if (cell.includes(';') || cell.includes('\n')) {
+                    cell = `"${cell}"`; // Coloca aspas se tiver ; ou \n
+                }
+                return cell;
+            }).join(';');
+        });
+        return [headerRow, ...rows].join('\n');
+    }
+
+    // Função para descarregar o CSV
+    function downloadCSV(csvString, filename) {
+        const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); // \uFEFF para Excel entender acentos
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    // Tentativa de encontrar o botão de exportar (é melhor adicionar um ID no HTML)
+    const btnExportarDados = Array.from(document.querySelectorAll('.danger-zone-card .btn-secondary')).find(btn => btn.textContent.includes('Exportar Dados'));
+    
+    if (btnExportarDados) {
+        btnExportarDados.addEventListener('click', async () => {
+            if (!confirm("Deseja descarregar um CSV com todos os produtos e categorias?")) return;
+            
+            try {
+                // 1. Buscar Produtos (usando o cache ou buscando de novo)
+                await carregarCacheParaPDV(); // Função do PDV que já carrega o cacheProdutos
+                
+                if (cacheProdutos.length === 0) {
+                    return alert("Nenhum produto encontrado para exportar.");
+                }
+
+                // Definimos as colunas que queremos no CSV
+                const headers = ['sku', 'nome', 'categoria_nome', 'qtd', 'custo', 'venda', 'estoque_minimo', 'vencimento'];
+                const csvData = convertToCSV(cacheProdutos, headers);
+                downloadCSV(csvData, 'export_produtos_mercado_bom_d.csv');
+
+            } catch (e) {
+                alert("Erro ao exportar dados: " + e.message);
+            }
+        });
+    } else {
+        console.warn("Botão de Exportar CSV não encontrado. Adicione um ID 'btn-exportar-csv' no HTML.");
+    }
+
+    // --- 2. Botão Limpar Sistema ---
+    if (btnLimpar) {
+        btnLimpar.addEventListener('click', async () => {
+            const confirmacao = prompt("Esta ação é IRREVERSÍVEL. Você perderá todos os seus PRODUTOS e PERDAS.\n\nPara confirmar, digite 'DELETAR' em maiúsculas:");
+            
+            if (confirmacao !== 'DELETAR') {
+                return alert("Ação cancelada.");
+            }
+            
+            alert("Iniciando limpeza... O sistema irá recarregar ao terminar.");
+            btnLimpar.disabled = true;
+            btnLimpar.textContent = "A limpar...";
+
+            try {
+                const empresaId = getEmpresaId();
+                const batch = writeBatch(db);
+
+                // 1. Apagar todos os produtos
+                const produtosRef = collection(db, "empresas", empresaId, "produtos");
+                const produtosSnap = await getDocs(produtosRef);
+                produtosSnap.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                
+                // 2. Apagar todos os registros de perdas
+                const perdasRef = collection(db, "empresas", empresaId, "perdas");
+                const perdasSnap = await getDocs(perdasRef);
+                perdasSnap.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+
+                await batch.commit();
+                
+                await logActivity('fas fa-exclamation-triangle', 'red', 'Sistema Limpo', 'Produtos e Perdas foram apagados.');
+                alert("Sistema limpo com sucesso!");
+                window.location.reload();
+
+            } catch (e) {
+                alert("Erro ao limpar o sistema: " + e.message);
+                btnLimpar.disabled = false;
+                btnLimpar.textContent = "Limpar Sistema";
+            }
+        });
+    }
 }
