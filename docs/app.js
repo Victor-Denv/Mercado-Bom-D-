@@ -1791,3 +1791,25 @@ if (btnConfirmarModalExtra) {
         }
     });
 }
+
+/* --- LÓGICA DO MENU MOBILE (Colar no final do app.js) --- */
+const btnMenuMobile = document.getElementById('btn-menu-mobile');
+const sidebar = document.querySelector('.sidebar');
+
+// Verifica se o botão existe na página antes de tentar usar
+if (btnMenuMobile && sidebar) {
+    // Ao clicar no botão (ícone), abre ou fecha o menu
+    btnMenuMobile.addEventListener('click', (e) => {
+        e.stopPropagation(); // Evita bugs de clique duplo
+        sidebar.classList.toggle('mobile-active');
+    });
+
+    // Ao clicar fora do menu, ele fecha sozinho
+    document.addEventListener('click', (e) => {
+        if (sidebar.classList.contains('mobile-active') && 
+            !sidebar.contains(e.target) && 
+            e.target !== btnMenuMobile) {
+            sidebar.classList.remove('mobile-active');
+        }
+    });
+}
