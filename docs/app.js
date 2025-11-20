@@ -749,6 +749,7 @@ onAuthStateChanged(auth, (user) => {
         carregarEstoqueBaixo();
         carregarInventario();
         carregarPerdas();
+        carregarDevedores();
 
     } else {
         // --- USUÁRIO NÃO ESTÁ LOGADO ---
@@ -1650,4 +1651,134 @@ if (pageConfig) { // Só executa se estiver na página de Configurações
             }
         });
     }
+}
+/* * =====================================
+ * LÓGICA DA ABA DE DEVEDORES
+ * ===================================== */
+
+// 1. FUNÇÃO PARA CARREGAR A LISTA NA TELA
+// Esta função vai ao banco de dados (Firestore), pega a lista "devedores" 
+// e cria as linhas da tabela (<tr>) no seu HTML novo.
+async function carregarDevedores() {
+    const tbody = document.getElementById('lista-devedores-body');
+    const totalFooter = document.getElementById('total-devedores-footer');
+    
+    // Se não achar a tabela (ex: está noutra página), para por aqui para não dar erro.
+    if (!tbody) return; 
+
+    const empresaId = localStorage.getItem('empresaId'); // Pega o ID do utilizador logado
+    const devedoresRef = collection(db, "empresas", empresaId, "devedores");
+
+    try {
+        // Busca os devedores ordenados pela data
+        const q = query(devedoresRef, orderBy("data_divida", "desc"));
+        const querySnapshot = await getDocs(q);
+        
+        tbody.innerHTML = ''; // Limpa a tabela antes de encher
+        let totalDevido = 0;
+
+        if (querySnapshot.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum devedor registado.</td></tr>';
+        }
+
+        querySnapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            const valor = parseFloat(d.valor) || 0;
+            totalDevido += valor;
+
+            // Formata a data para dia/mês/ano
+            const dataFormatada = d.data_divida.split('-').reverse().join('/');
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${dataFormatada}</td>
+                <td><strong>${d.nome}</strong></td>
+                <td>${d.descricao || '-'}</td>
+                <td style="color: #dc2626; font-weight: bold;">R$ ${valor.toFixed(2)}</td>
+                <td>
+                    <button class="btn-action delete btn-quitar" data-id="${docSnap.id}" data-nome="${d.nome}" title="Marcar como Pago">
+                        <i class="fas fa-check"></i> Quitar
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            // Adiciona o clique no botão "Quitar" desta linha
+            tr.querySelector('.btn-quitar').addEventListener('click', () => {
+                // Configura o modal para saber que estamos a apagar um DEVEDOR
+                deleteConfig = { type: 'devedor', id: docSnap.id, nome: d.nome };
+                const modal = document.getElementById('delete-modal');
+                if(modal) modal.style.display = 'flex';
+            });
+        });
+
+        // Atualiza o total lá em baixo na tabela
+        if (totalFooter) totalFooter.textContent = `R$ ${totalDevido.toFixed(2)}`;
+
+    } catch (e) {
+        console.error("Erro ao carregar devedores:", e);
+    }
+}
+
+// 2. SALVAR NOVO DEVEDOR
+// Este pedaço fica "à escuta" quando você clica em "Salvar" no formulário.
+const formAddDevedor = document.getElementById('form-add-devedor');
+if (formAddDevedor) {
+    formAddDevedor.addEventListener('submit', async (e) => {
+        e.preventDefault(); // Não deixa a página recarregar
+        const empresaId = localStorage.getItem('empresaId');
+        
+        // Pega os dados dos inputs
+        const novoDevedor = {
+            nome: document.getElementById('nome-devedor').value.trim(),
+            valor: parseFloat(document.getElementById('valor-divida').value),
+            data_divida: document.getElementById('data-divida').value,
+            descricao: document.getElementById('desc-divida').value.trim(),
+            criado_em: serverTimestamp() // Marca a hora exata no servidor
+        };
+
+        try {
+            // Salva no Firebase
+            const devedoresRef = collection(db, "empresas", empresaId, "devedores");
+            await addDoc(devedoresRef, novoDevedor);
+            
+            // Regista na atividade recente (Dashboard)
+            await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${novoDevedor.nome} | Valor: R$ ${novoDevedor.valor.toFixed(2)}`);
+            
+            alert("Dívida registada com sucesso!");
+            formAddDevedor.reset(); // Limpa o formulário
+            carregarDevedores(); // Recarrega a tabela para mostrar o novo item
+
+        } catch (e) {
+            alert("Erro ao salvar: " + e.message);
+        }
+    });
+}
+
+// 3. ATUALIZAÇÃO DO MODAL (Para o botão "Sim, Excluir/Quitar" funcionar)
+// Como o seu modal já existe, precisamos adicionar um "ouvido" extra para o tipo 'devedor'.
+const btnConfirmarModalExtra = document.getElementById('modal-btn-confirm');
+if (btnConfirmarModalExtra) {
+    btnConfirmarModalExtra.addEventListener('click', async () => {
+        // Só age se o tipo for 'devedor' (configurado no passo 1)
+        if (deleteConfig && deleteConfig.type === 'devedor') {
+            const empresaId = localStorage.getItem('empresaId');
+            try {
+                // Apaga do banco de dados
+                await deleteDoc(doc(db, "empresas", empresaId, "devedores", deleteConfig.id));
+                
+                // Fecha o modal e atualiza a tabela
+                document.getElementById('delete-modal').style.display = 'none';
+                alert(`Dívida de ${deleteConfig.nome} quitada!`);
+                carregarDevedores();
+                
+                // Regista atividade
+                await logActivity('fas fa-check-circle', 'green', 'Dívida Paga', `Recebido de: ${deleteConfig.nome}`);
+                
+                deleteConfig = {}; // Limpa a configuração
+            } catch (e) {
+                alert("Erro ao quitar: " + e.message);
+            }
+        }
+    });
 }
