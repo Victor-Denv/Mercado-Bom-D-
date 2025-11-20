@@ -860,48 +860,57 @@ const modalBtnConfirm = document.getElementById('modal-btn-confirm');
 const modalCloseIcon = document.querySelector('.modal-close-icon');
 if (modalBtnCancel) modalBtnCancel.addEventListener('click', closeModal);
 if (modalCloseIcon) modalCloseIcon.addEventListener('click', closeModal);
+// COLE ISTO NO LUGAR DO BLOCO ANTIGO (Linha 529)
 if (modalBtnConfirm) {
     modalBtnConfirm.addEventListener('click', async () => {
         const empresaId = getEmpresaId();
-        if (!empresaId || !deleteConfig.type || !deleteConfig.id) return closeModal();
+        
+        // Guardamos o tipo numa variável local antes de fechar
+        const tipoParaApagar = deleteConfig.type; 
+        
+        if (!empresaId || !tipoParaApagar || !deleteConfig.id) return closeModal();
+        
         let docRef;
         let logMessage = "";
+        
         try {
-            if (deleteConfig.type === 'categoria') {
+            if (tipoParaApagar === 'categoria') {
                 docRef = doc(db, "empresas", empresaId, "categorias", deleteConfig.id);
                 logMessage = `Categoria "${deleteConfig.nome || ''}" foi removida.`;
-            } else if (deleteConfig.type === 'produto') {
+            } else if (tipoParaApagar === 'produto') {
                 docRef = doc(db, "empresas", empresaId, "produtos", deleteConfig.id);
                 logMessage = `Produto "${deleteConfig.nome || ''}" (SKU: ${deleteConfig.id}) foi removido.`;
-            } else if (deleteConfig.type === 'perfil') {
-                // CORREÇÃO: Adiciona a lógica para apagar a foto do Storage
-                try {
-                    const perfilRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
-                    const perfilSnap = await getDoc(perfilRef);
-                    if (perfilSnap.exists()) {
-                        const fotoURL = perfilSnap.data().foto_perfil;
-                        if (fotoURL && fotoURL.includes('firebasestorage')) {
-                            await deleteObject(ref(storage, fotoURL));
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Não foi possível apagar a foto do perfil do Storage:", e);
-                }
-                // FIM DA CORREÇÃO
+            } else if (tipoParaApagar === 'perfil') {
                 docRef = doc(db, "empresas", empresaId, "perfis", deleteConfig.id);
                 logMessage = `Perfil "${deleteConfig.id}" foi removido.`;
+            } else if (tipoParaApagar === 'devedor') { 
+                // --- NOVA LÓGICA DE DEVEDORES AQUI ---
+                docRef = doc(db, "empresas", empresaId, "devedores", deleteConfig.id);
+                logMessage = `Dívida de "${deleteConfig.nome}" foi quitada/removida.`;
             } else {
                 return closeModal(); 
             }
+            
+            // Executa a exclusão no Banco de Dados
             await deleteDoc(docRef);
+            
+            // Regista a atividade
             await logActivity('fas fa-trash-alt', 'red', 'Item Excluído', logMessage);
-            closeModal();
-            if (deleteConfig.type === 'categoria') carregarCategorias();
-            if (deleteConfig.type === 'produto') carregarProdutos();
-            if (deleteConfig.type === 'perfil') carregarGerenciarPerfis();
-        } catch (e) { alert(`Erro ao excluir: ${e.message}`); }
+            
+            closeModal(); // Fecha o modal e limpa a variável global
+
+            // Atualiza a lista correta na tela
+            if (tipoParaApagar === 'categoria') carregarCategorias();
+            if (tipoParaApagar === 'produto') carregarProdutos();
+            if (tipoParaApagar === 'perfil') carregarGerenciarPerfis();
+            if (tipoParaApagar === 'devedor') carregarDevedores(); // Atualiza a tabela de devedores
+
+        } catch (e) { 
+            alert(`Erro ao excluir: ${e.message}`); 
+        }
     });
 }
+
 
 // --- FORM ADICIONAR CATEGORIA ---
 const formAddCategory = document.getElementById('form-add-categoria');
