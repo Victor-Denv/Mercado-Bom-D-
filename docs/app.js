@@ -1813,3 +1813,76 @@ if (btnMenuMobile && sidebar) {
         }
     });
 }
+
+const btnSangria = document.getElementById('btn-sangria');
+const modalSangria = document.getElementById('sangria-modal');
+const formSangria = document.getElementById('form-sangria');
+const btnFecharSangria = document.getElementById('btn-fechar-sangria');
+const iconFecharSangria = document.querySelector('.close-sangria-icon');
+
+// Só executa se estiver na página do PDV
+if (btnSangria && modalSangria) {
+
+    // 1. Abrir o Modal
+    btnSangria.addEventListener('click', () => {
+        modalSangria.style.display = 'flex';
+        // Tenta focar no campo de valor
+        setTimeout(() => {
+             const inputValor = document.getElementById('valor-sangria');
+             if(inputValor) inputValor.focus();
+        }, 100);
+    });
+
+    // 2. Funções para Fechar o Modal
+    const fecharModalSangria = () => {
+        modalSangria.style.display = 'none';
+        if(formSangria) formSangria.reset();
+    };
+    
+    if(btnFecharSangria) btnFecharSangria.addEventListener('click', fecharModalSangria);
+    if(iconFecharSangria) iconFecharSangria.addEventListener('click', fecharModalSangria);
+
+    // Fechar se clicar fora da janela branca
+    window.addEventListener('click', (event) => {
+        if (event.target === modalSangria) {
+            fecharModalSangria();
+        }
+    });
+
+    // 3. Salvar a Retirada no Firebase
+    if (formSangria) {
+        formSangria.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const valorInput = document.getElementById('valor-sangria');
+            const motivoInput = document.getElementById('motivo-sangria');
+            
+            const valor = parseFloat(valorInput.value);
+            const motivo = motivoInput.value.trim();
+            const empresaId = localStorage.getItem('empresaId');
+
+            if (!valor || valor <= 0 || !motivo) return alert("Preencha um valor válido e o motivo.");
+
+            try {
+                // Salva na coleção 'sangrias'
+                const sangriasRef = collection(db, "empresas", empresaId, "sangrias");
+                await addDoc(sangriasRef, {
+                    valor: valor,
+                    motivo: motivo,
+                    data: serverTimestamp(),
+                    data_string: new Date().toLocaleDateString('pt-BR'),
+                    usuario: localStorage.getItem('currentProfile') || 'Sistema'
+                });
+
+                // Regista na atividade (Dashboard)
+                await logActivity('fas fa-hand-holding-usd', 'yellow', 'Retirada de Caixa', `R$ ${valor.toFixed(2)} - ${motivo}`);
+
+                alert(`Retirada de R$ ${valor.toFixed(2)} registada!`);
+                fecharModalSangria();
+
+            } catch (error) {
+                alert("Erro ao registrar retirada: " + error.message);
+                console.error(error);
+            }
+        });
+    }
+}
