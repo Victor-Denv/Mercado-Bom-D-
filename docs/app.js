@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL CORRIGIDA - COM SETUP LOGOUT) === */
+/* === app.js (VERSÃO FINAL BLINDADA) === */
 
 // 1. IMPORTAÇÕES
 import { 
@@ -18,10 +18,10 @@ import { auth, db } from './firebase-config.js';
 // 2. CONSTANTES
 const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
-let deleteConfig = {};
+let deleteConfig = {}; 
 
 /* ==================================================================
-   3. FUNÇÕES GERAIS (DEFINIDAS PRIMEIRO)
+   3. DEFINIÇÃO DAS FUNÇÕES (O "Manual de Instruções")
    ================================================================== */
 
 function getEmpresaId() {
@@ -30,12 +30,11 @@ function getEmpresaId() {
     return empresaId;
 }
 
-// Função para fazer logout (CORREÇÃO: AGORA ELA EXISTE)
+// --- FUNÇÃO DE LOGOUT (AGORA ESTÁ AQUI EM CIMA) ---
 function setupLogout() {
     const btn = document.querySelector('.sidebar-footer a');
     if (!btn) return;
     
-    // Removemos listeners antigos clonando o botão
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
 
@@ -49,20 +48,7 @@ function setupLogout() {
     });
 }
 
-async function logActivity(icon, color, title, description) {
-    try {
-        const empresaId = getEmpresaId();
-        const perfil = localStorage.getItem('currentProfile') || 'Sistema';
-        if (!empresaId) return;
-        await addDoc(collection(db, "empresas", empresaId, "atividades"), {
-            icon, color, title, description,
-            perfil_nome: perfil,
-            timestamp: serverTimestamp(),
-            time_string: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-        });
-    } catch (e) { console.error('Log erro:', e.message); }
-}
-
+// --- FUNÇÃO DO CABEÇALHO ---
 async function carregarHeaderUsuario() {
     const nomeEl = document.getElementById('header-profile-name');
     const picEl = document.getElementById('header-profile-pic');
@@ -82,6 +68,7 @@ async function carregarHeaderUsuario() {
     }
 }
 
+// --- FUNÇÃO DE PESQUISA ---
 function setupGlobalSearch() {
     const input = document.getElementById('global-search-input');
     const results = document.getElementById('global-search-results');
@@ -102,7 +89,6 @@ function setupGlobalSearch() {
             if(results) results.style.display = 'none';
             return;
         }
-        
         const filtrados = paginas.filter(p => p.nome.toLowerCase().includes(termo));
         
         if (results) {
@@ -125,6 +111,22 @@ function setupGlobalSearch() {
     });
 }
 
+// --- LOG DE ATIVIDADE ---
+async function logActivity(icon, color, title, description) {
+    try {
+        const empresaId = getEmpresaId();
+        const perfil = localStorage.getItem('currentProfile') || 'Sistema';
+        if (!empresaId) return;
+        await addDoc(collection(db, "empresas", empresaId, "atividades"), {
+            icon, color, title, description,
+            perfil_nome: perfil,
+            timestamp: serverTimestamp(),
+            time_string: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+    } catch (e) { console.error('Log erro:', e.message); }
+}
+
+// --- DROPDOWN DE PERFIS ---
 async function carregarDropdownPerfis() {
     const list = document.getElementById('profile-dropdown-list');
     if (!list) return;
@@ -146,7 +148,6 @@ async function carregarDropdownPerfis() {
             list.appendChild(a);
         });
         
-        // Link de Sair
         const sair = document.createElement('a');
         sair.innerHTML = '<i class="fas fa-sign-out-alt"></i> Sair';
         sair.style.borderTop = "1px solid #eee";
@@ -172,7 +173,6 @@ function setupDevedores() {
 
     const campoData = document.getElementById('data-divida');
     if (campoData && !campoData.value) {
-        // Formato YYYY-MM-DD
         const hoje = new Date();
         const ano = hoje.getFullYear();
         const mes = String(hoje.getMonth() + 1).padStart(2, '0');
@@ -213,7 +213,7 @@ async function carregarDevedores() {
     if(!empresaId) return;
 
     try {
-        // Busca SEM ordenação primeiro para garantir que carrega tudo
+        // Busca SEM ordenação primeiro para garantir compatibilidade
         const devedoresRef = collection(db, "empresas", empresaId, "devedores");
         const snap = await getDocs(devedoresRef);
         
@@ -226,11 +226,11 @@ async function carregarDevedores() {
         snap.forEach(docSnap => {
             const d = docSnap.data();
             
-            // Tenta pegar a data de várias formas
+            // Compatibilidade de data
             let dataF = '-';
             if (d.data_divida) {
                 dataF = d.data_divida.split('-').reverse().join('/');
-            } else if (d.data) { // Compatibilidade com versões antigas
+            } else if (d.data) { 
                 dataF = d.data.split('-').reverse().join('/');
             }
 
@@ -346,10 +346,12 @@ async function carregarDashboard() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
     
+    // Contagem simples
     const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
 
+    // Feed
     const feed = document.getElementById('activity-feed-list');
     if(feed) {
         const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(5));
@@ -454,6 +456,7 @@ onAuthStateChanged(auth, (user) => {
         localStorage.setItem('empresaId', user.uid);
         const perfil = localStorage.getItem('currentProfile');
 
+        // Redirecionamentos
         if (!perfil && !['perfis.html', 'configuracoes.html'].includes(currentPage)) {
             window.location.href = 'perfis.html';
             return;
@@ -464,31 +467,35 @@ onAuthStateChanged(auth, (user) => {
         }
 
         // --- INICIALIZA A PÁGINA (CHAMANDO AS FUNÇÕES QUE AGORA EXISTEM) ---
-        if(document.querySelector('.top-header')) {
-            carregarHeaderUsuario();
+        // Verificações "if" para evitar erros se a função ainda não carregou
+        if(typeof carregarHeaderUsuario === 'function' && document.querySelector('.top-header')) {
+            carregarHeaderUsuario(); 
             setupGlobalSearch();
             carregarDropdownPerfis();
             setupLogout(); // <--- AGORA ESTA FUNÇÃO EXISTE!
         }
         
-        carregarCategorias(); 
+        // Chamadas seguras
+        if(typeof carregarCategorias === 'function') carregarCategorias(); 
         
-        if (document.getElementById('profile-grid')) carregarPerfis();
-        if (document.getElementById('product-table-body')) carregarProdutos();
-        if (document.getElementById('form-add-product')) setupAdicionarProduto();
-        if (document.querySelector('.stats-grid')) carregarDashboard();
+        if (document.getElementById('profile-grid') && typeof carregarPerfis === 'function') carregarPerfis();
+        if (document.getElementById('product-table-body') && typeof carregarProdutos === 'function') carregarProdutos();
+        if (document.getElementById('form-add-product') && typeof setupAdicionarProduto === 'function') setupAdicionarProduto();
+        if (document.querySelector('.stats-grid') && typeof carregarDashboard === 'function') carregarDashboard();
         
-        if (document.getElementById('form-add-devedor')) setupDevedores();
-        if (document.getElementById('lista-devedores-body')) carregarDevedores();
+        // Devedores
+        if (document.getElementById('form-add-devedor') && typeof setupDevedores === 'function') setupDevedores();
+        if (document.getElementById('lista-devedores-body') && typeof carregarDevedores === 'function') carregarDevedores();
         
-        if (document.getElementById('form-add-categoria')) setupCategorias();
-        if (document.getElementById('form-add-perfil')) carregarGerenciarPerfis();
+        if (document.getElementById('form-add-categoria') && typeof setupCategorias === 'function') setupCategorias();
+        if (document.getElementById('form-add-perfil') && typeof carregarGerenciarPerfis === 'function') carregarGerenciarPerfis();
 
     } else {
         if (!publicas.includes(currentPage)) {
             window.location.href = 'index.html';
         }
         
+        // Lógica de Login/Cadastro
         if (document.getElementById('form-login')) {
             document.getElementById('form-login').addEventListener('submit', async (e) => {
                 e.preventDefault();
