@@ -1,6 +1,6 @@
-/* === app.js (VERSÃO FINAL - CORREÇÃO DEVEDORES E HEADER) === */
+/* === app.js (VERSÃO FINAL REORGANIZADA - VICTOR) === */
 
-// 1. IMPORTAÇÕES DO FIREBASE
+// 1. IMPORTAÇÕES
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -15,13 +15,14 @@ import {
 
 import { auth, db } from './firebase-config.js';
 
-// 2. CONSTANTES
-const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
+// 2. CONSTANTES E VARIÁVEIS GLOBAIS
+const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
+let cacheCategorias = [];
 let deleteConfig = {}; 
 
 /* ==================================================================
-   3. FUNÇÕES GERAIS
+   3. FUNÇÕES GERAIS (DEFINIDAS PRIMEIRO PARA EVITAR ERROS)
    ================================================================== */
 
 function getEmpresaId() {
@@ -44,17 +45,16 @@ async function logActivity(icon, color, title, description) {
     } catch (e) { console.error('Log erro:', e.message); }
 }
 
-// --- CORREÇÃO AQUI: O NOME DA FUNÇÃO FOI AJUSTADO ---
-async function carregarHeaderUsuario() {
+async function carregarDadosGlobaisUsuario() {
+    // Esta função foi renomeada/padronizada para evitar confusão
     const nomeEl = document.getElementById('header-profile-name');
     const picEl = document.getElementById('header-profile-pic');
     const perfil = localStorage.getItem('currentProfile');
-    const uid = auth.currentUser ? auth.currentUser.uid : null;
     const empresaId = getEmpresaId();
 
     if (nomeEl && perfil) nomeEl.textContent = perfil;
     
-    if (uid && perfil && picEl && empresaId) {
+    if (empresaId && perfil && picEl) {
         try {
             const docSnap = await getDoc(doc(db, "empresas", empresaId, "perfis", perfil));
             if (docSnap.exists()) {
@@ -63,6 +63,9 @@ async function carregarHeaderUsuario() {
         } catch (e) { console.log("Erro foto header", e); }
     }
 }
+
+// Criando um alias para garantir compatibilidade caso algum lugar chame pelo nome antigo
+const carregarHeaderUsuario = carregarDadosGlobaisUsuario;
 
 function setupGlobalSearch() {
     const input = document.getElementById('global-search-input');
@@ -99,6 +102,7 @@ function setupGlobalSearch() {
         }
     });
     
+    // Fecha ao clicar fora
     document.addEventListener('click', (e) => {
         if (results && !input.contains(e.target) && !results.contains(e.target)) {
             results.style.display = 'none';
@@ -127,6 +131,7 @@ async function carregarDropdownPerfis() {
             list.appendChild(a);
         });
         
+        // Link de Sair
         const sair = document.createElement('a');
         sair.innerHTML = '<i class="fas fa-sign-out-alt"></i> Sair';
         sair.style.borderTop = "1px solid #eee";
@@ -142,17 +147,42 @@ async function carregarDropdownPerfis() {
     } catch(e) { console.error(e); }
 }
 
+function setupLogout() {
+    // Função auxiliar caso o dropdown falhe, tenta pegar o botão da sidebar
+    const btn = document.querySelector('.sidebar-footer a');
+    if (!btn) return;
+    
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    newBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm("Sair do sistema?")) {
+            await signOut(auth);
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+    });
+}
+
 /* ==================================================================
-   4. FUNÇÕES ESPECÍFICAS (DEVEDORES)
+   4. FUNÇÕES ESPECÍFICAS (DEVEDORES, PRODUTOS, ETC)
    ================================================================== */
 
+// --- DEVEDORES ---
 function setupDevedores() {
     const form = document.getElementById('form-add-devedor');
     if (!form) return;
 
+    // Data automática
     const campoData = document.getElementById('data-divida');
     if (campoData && !campoData.value) {
-        campoData.value = new Date().toISOString().split('T')[0];
+        // Formato compatível com input type="date": YYYY-MM-DD
+        const hoje = new Date();
+        const ano = hoje.getFullYear();
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        campoData.value = `${ano}-${mes}-${dia}`;
     }
 
     form.addEventListener('submit', async (e) => {
@@ -169,10 +199,13 @@ function setupDevedores() {
 
         try {
             await addDoc(collection(db, "empresas", empresaId, "devedores"), devedor);
-            await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${devedor.nome}`);
             alert("Dívida salva com sucesso!");
             form.reset();
-            if(campoData) campoData.value = new Date().toISOString().split('T')[0];
+            // Restaura a data de hoje
+            if(campoData) {
+                 const h = new Date();
+                 campoData.value = `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
+            }
             carregarDevedores(); 
         } catch (error) { alert("Erro ao salvar: " + error.message); }
     });
@@ -185,15 +218,9 @@ async function carregarDevedores() {
     if(!empresaId) return;
 
     try {
-        // Tenta ordenar. Se der erro de índice, pega sem ordem primeiro.
-        let q;
-        try {
-            q = query(collection(db, "empresas", empresaId, "devedores"), orderBy("criadoEm", "desc"));
-        } catch (e) {
-            q = collection(db, "empresas", empresaId, "devedores");
-        }
-        
-        const snap = await getDocs(q);
+        // Tenta buscar SEM ordenação primeiro para garantir compatibilidade com dados antigos
+        const devedoresRef = collection(db, "empresas", empresaId, "devedores");
+        const snap = await getDocs(devedoresRef);
         
         tbody.innerHTML = "";
         if (snap.empty) {
@@ -203,8 +230,15 @@ async function carregarDevedores() {
 
         snap.forEach(docSnap => {
             const d = docSnap.data();
-            // Garante que a data existe, senão põe um traço
-            const dataF = d.data_divida ? d.data_divida.split('-').reverse().join('/') : (d.data ? d.data : '-');
+            
+            // Tenta pegar a data de várias formas
+            let dataF = '-';
+            if (d.data_divida) {
+                dataF = d.data_divida.split('-').reverse().join('/');
+            } else if (d.data) { // Compatibilidade com versões anteriores
+                dataF = d.data.split('-').reverse().join('/');
+            }
+
             const val = parseFloat(d.valor) || 0;
             
             const tr = document.createElement('tr');
@@ -216,6 +250,7 @@ async function carregarDevedores() {
                 <td><button class="btn-action delete btn-pagar">Pagar</button></td>
             `;
             
+            // Botão Pagar com delete direto
             tr.querySelector('.btn-pagar').onclick = async () => {
                 if(confirm(`Confirmar pagamento de R$ ${val.toFixed(2)}?`)) {
                     await deleteDoc(doc(db, "empresas", empresaId, "devedores", docSnap.id));
@@ -228,55 +263,7 @@ async function carregarDevedores() {
     } catch (e) { console.error("Erro devedores:", e); }
 }
 
-/* ==================================================================
-   5. OUTRAS FUNÇÕES (PRODUTOS, PERFIS, ETC)
-   ================================================================== */
-async function carregarPerfis() {
-    const grid = document.getElementById('profile-grid');
-    if(!grid) return;
-    const empresaId = getEmpresaId();
-    if(!empresaId) return;
-
-    const snap = await getDocs(collection(db, "empresas", empresaId, "perfis"));
-    grid.innerHTML = '';
-    snap.forEach(d => {
-        const p = d.data();
-        const div = document.createElement('div');
-        div.className = 'profile-card';
-        div.innerHTML = `<img src="${p.foto_perfil || PLACEHOLDER_IMG}" class="profile-card-pic"><span>${p.nome}</span>`;
-        div.onclick = () => {
-            localStorage.setItem('currentProfile', p.nome);
-            window.location.href = 'dashboard.html';
-        };
-        grid.appendChild(div);
-    });
-}
-
-function setupAdicionarProduto() {
-    const form = document.getElementById('form-add-product');
-    if(!form) return;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const empresaId = getEmpresaId();
-        const sku = document.getElementById('sku-produto').value;
-        const prod = {
-            sku: sku,
-            nome: document.getElementById('nome-produto').value,
-            categoria: document.getElementById('categoria-produto').value,
-            custo: Number(document.getElementById('preco-custo').value),
-            venda: Number(document.getElementById('preco-venda').value),
-            qtd: Number(document.getElementById('qtd-inicial').value),
-            estoqueMinimo: Number(document.getElementById('estoque-minimo').value),
-            vencimento: document.getElementById('data-vencimento').value
-        };
-        try {
-            await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
-            alert("Produto Salvo!");
-            window.location.href = 'produtos.html';
-        } catch(e) { alert(e.message); }
-    });
-}
-
+// --- PRODUTOS ---
 async function carregarProdutos() {
     const tbody = document.getElementById('product-table-body');
     if(!tbody) return;
@@ -298,10 +285,11 @@ async function carregarProdutos() {
             cacheProdutos.push(p);
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${p.sku}</td><td>${p.nome}</td><td>${p.categoria}</td>
+                <td>${p.sku}</td><td>${p.nome}</td><td>${p.categoria_nome || ''}</td>
                 <td>${p.qtd}</td><td>R$ ${p.venda.toFixed(2)}</td>
                 <td><button class="btn-action delete">Excluir</button></td>
             `;
+            // Exclusão simplificada
             tr.querySelector('.delete').onclick = async () => {
                 if(confirm("Excluir produto?")) {
                     await deleteDoc(doc(db, "empresas", empresaId, "produtos", p.sku));
@@ -313,11 +301,59 @@ async function carregarProdutos() {
     } catch(e) { console.error(e); }
 }
 
+function setupAdicionarProduto() {
+    const form = document.getElementById('form-add-product');
+    if(!form) return;
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const sku = document.getElementById('sku-produto').value;
+        const prod = {
+            sku: sku,
+            nome: document.getElementById('nome-produto').value,
+            categoria_nome: document.getElementById('categoria-produto').value,
+            custo: Number(document.getElementById('preco-custo').value),
+            venda: Number(document.getElementById('preco-venda').value),
+            qtd: Number(document.getElementById('qtd-inicial').value),
+            estoque_minimo: Number(document.getElementById('estoque-minimo').value),
+            vencimento: document.getElementById('data-vencimento').value
+        };
+        try {
+            await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
+            alert("Produto Salvo!");
+            window.location.href = 'produtos.html';
+        } catch(e) { alert(e.message); }
+    });
+}
+
+// --- PERFIS ---
+async function carregarPerfis() {
+    const grid = document.getElementById('profile-grid');
+    if(!grid) return;
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
+
+    const snap = await getDocs(collection(db, "empresas", empresaId, "perfis"));
+    grid.innerHTML = '';
+    snap.forEach(d => {
+        const p = d.data();
+        const div = document.createElement('div');
+        div.className = 'profile-card';
+        div.innerHTML = `<img src="${p.foto_perfil || PLACEHOLDER_IMG}" class="profile-card-pic"><span>${p.nome}</span>`;
+        div.onclick = () => {
+            localStorage.setItem('currentProfile', p.nome);
+            window.location.href = 'dashboard.html';
+        };
+        grid.appendChild(div);
+    });
+}
+
+// --- DASHBOARD ---
 async function carregarDashboard() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
     
-    // Contagem simples
+    // Contadores simples
     const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
@@ -340,6 +376,7 @@ async function carregarDashboard() {
     }
 }
 
+// --- CATEGORIAS ---
 async function carregarCategorias() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
