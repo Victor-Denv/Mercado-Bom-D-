@@ -1,6 +1,6 @@
-/* === app.js (VERSÃO FINAL CORRIGIDA - NOMES ALINHADOS) === */
+/* === app.js (VERSÃO FINAL - CORREÇÃO DEVEDORES E HEADER) === */
 
-// 1. IMPORTAÇÕES
+// 1. IMPORTAÇÕES DO FIREBASE
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -18,10 +18,10 @@ import { auth, db } from './firebase-config.js';
 // 2. CONSTANTES
 const PLACEHOLDER_IMG = 'https://via.placeholder.com/100';
 let cacheProdutos = [];
-let deleteConfig = {};
+let deleteConfig = {}; 
 
 /* ==================================================================
-   3. FUNÇÕES GLOBAIS (DEFINIDAS PRIMEIRO PARA EVITAR ERROS)
+   3. FUNÇÕES GERAIS
    ================================================================== */
 
 function getEmpresaId() {
@@ -30,7 +30,21 @@ function getEmpresaId() {
     return empresaId;
 }
 
-// CORREÇÃO: O nome da função agora é exatamente o que é chamado no código
+async function logActivity(icon, color, title, description) {
+    try {
+        const empresaId = getEmpresaId();
+        const perfil = localStorage.getItem('currentProfile') || 'Sistema';
+        if (!empresaId) return;
+        await addDoc(collection(db, "empresas", empresaId, "atividades"), {
+            icon, color, title, description,
+            perfil_nome: perfil,
+            timestamp: serverTimestamp(),
+            time_string: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+    } catch (e) { console.error('Log erro:', e.message); }
+}
+
+// --- CORREÇÃO AQUI: O NOME DA FUNÇÃO FOI AJUSTADO ---
 async function carregarHeaderUsuario() {
     const nomeEl = document.getElementById('header-profile-name');
     const picEl = document.getElementById('header-profile-pic');
@@ -70,7 +84,6 @@ function setupGlobalSearch() {
             if(results) results.style.display = 'none';
             return;
         }
-        
         const filtrados = paginas.filter(p => p.nome.toLowerCase().includes(termo));
         
         if (results) {
@@ -93,124 +106,6 @@ function setupGlobalSearch() {
     });
 }
 
-function setupLogout() {
-    const btn = document.querySelector('.sidebar-footer a');
-    if (!btn) return;
-    
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-
-    newBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (confirm("Sair do sistema?")) {
-            await signOut(auth);
-            localStorage.clear();
-            window.location.href = 'index.html';
-        }
-    });
-}
-
-async function logActivity(icon, color, title, description) {
-    try {
-        const empresaId = getEmpresaId();
-        const perfil = localStorage.getItem('currentProfile') || 'Sistema';
-        if (!empresaId) return;
-        await addDoc(collection(db, "empresas", empresaId, "atividades"), {
-            icon, color, title, description,
-            perfil_nome: perfil,
-            timestamp: serverTimestamp(),
-            time_string: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-        });
-    } catch (e) { console.error('Log erro:', e.message); }
-}
-
-/* ==================================================================
-   4. FUNÇÕES DE DEVEDORES (FIADO) - AGORA VAI FUNCIONAR
-   ================================================================== */
-function setupDevedores() {
-    const form = document.getElementById('form-add-devedor');
-    if (!form) return;
-
-    const campoData = document.getElementById('data-divida');
-    if (campoData && !campoData.value) {
-        campoData.value = new Date().toISOString().split('T')[0];
-    }
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const uid = getEmpresaId();
-        
-        const devedor = {
-            nome: document.getElementById('nome-devedor').value,
-            valor: parseFloat(document.getElementById('valor-divida').value),
-            data_divida: document.getElementById('data-divida').value,
-            descricao: document.getElementById('descricao-divida').value,
-            criadoEm: serverTimestamp()
-        };
-
-        try {
-            await addDoc(collection(db, "empresas", uid, "devedores"), devedor);
-            await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${devedor.nome}`);
-            alert("Dívida salva com sucesso!");
-            form.reset();
-            if(campoData) campoData.value = new Date().toISOString().split('T')[0];
-            carregarDevedores(); 
-        } catch (error) {
-            alert("Erro ao salvar: " + error.message);
-        }
-    });
-}
-
-async function carregarDevedores() {
-    const tbody = document.getElementById('lista-devedores-body');
-    if (!tbody) return;
-
-    const uid = getEmpresaId();
-    if(!uid) return;
-
-    try {
-        const q = query(collection(db, "empresas", uid, "devedores"), orderBy("criadoEm", "desc"));
-        const snap = await getDocs(q);
-        
-        tbody.innerHTML = "";
-        
-        if (snap.empty) {
-            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>Nenhum devedor registrado.</td></tr>";
-            return;
-        }
-
-        snap.forEach(docSnap => {
-            const d = docSnap.data();
-            const dataF = d.data_divida ? d.data_divida.split('-').reverse().join('/') : '-';
-            const val = parseFloat(d.valor) || 0;
-            
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${dataF}</td>
-                <td><strong>${d.nome}</strong></td>
-                <td>${d.descricao}</td>
-                <td style="color: red; font-weight: bold;">R$ ${val.toFixed(2)}</td>
-                <td><button class="btn-action delete btn-pagar">Pagar</button></td>
-            `;
-            
-            tr.querySelector('.btn-pagar').onclick = async () => {
-                if(confirm(`Confirmar pagamento de R$ ${val.toFixed(2)}?`)) {
-                    await deleteDoc(doc(db, "empresas", uid, "devedores", docSnap.id));
-                    await logActivity('fas fa-check', 'green', 'Dívida Paga', `Recebido de ${d.nome}`);
-                    carregarDevedores();
-                }
-            };
-            
-            tbody.appendChild(tr);
-        });
-    } catch (error) {
-        console.error("Erro devedores:", error);
-    }
-}
-
-/* ==================================================================
-   5. OUTRAS FUNÇÕES ESSENCIAIS
-   ================================================================== */
 async function carregarDropdownPerfis() {
     const list = document.getElementById('profile-dropdown-list');
     if (!list) return;
@@ -247,6 +142,95 @@ async function carregarDropdownPerfis() {
     } catch(e) { console.error(e); }
 }
 
+/* ==================================================================
+   4. FUNÇÕES ESPECÍFICAS (DEVEDORES)
+   ================================================================== */
+
+function setupDevedores() {
+    const form = document.getElementById('form-add-devedor');
+    if (!form) return;
+
+    const campoData = document.getElementById('data-divida');
+    if (campoData && !campoData.value) {
+        campoData.value = new Date().toISOString().split('T')[0];
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        
+        const devedor = {
+            nome: document.getElementById('nome-devedor').value,
+            valor: parseFloat(document.getElementById('valor-divida').value),
+            data_divida: document.getElementById('data-divida').value,
+            descricao: document.getElementById('descricao-divida').value,
+            criadoEm: serverTimestamp()
+        };
+
+        try {
+            await addDoc(collection(db, "empresas", empresaId, "devedores"), devedor);
+            await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${devedor.nome}`);
+            alert("Dívida salva com sucesso!");
+            form.reset();
+            if(campoData) campoData.value = new Date().toISOString().split('T')[0];
+            carregarDevedores(); 
+        } catch (error) { alert("Erro ao salvar: " + error.message); }
+    });
+}
+
+async function carregarDevedores() {
+    const tbody = document.getElementById('lista-devedores-body');
+    if (!tbody) return;
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
+
+    try {
+        // Tenta ordenar. Se der erro de índice, pega sem ordem primeiro.
+        let q;
+        try {
+            q = query(collection(db, "empresas", empresaId, "devedores"), orderBy("criadoEm", "desc"));
+        } catch (e) {
+            q = collection(db, "empresas", empresaId, "devedores");
+        }
+        
+        const snap = await getDocs(q);
+        
+        tbody.innerHTML = "";
+        if (snap.empty) {
+            tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>Nenhum devedor registrado.</td></tr>";
+            return;
+        }
+
+        snap.forEach(docSnap => {
+            const d = docSnap.data();
+            // Garante que a data existe, senão põe um traço
+            const dataF = d.data_divida ? d.data_divida.split('-').reverse().join('/') : (d.data ? d.data : '-');
+            const val = parseFloat(d.valor) || 0;
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${dataF}</td>
+                <td><strong>${d.nome}</strong></td>
+                <td>${d.descricao || ''}</td>
+                <td style="color: red; font-weight: bold;">R$ ${val.toFixed(2)}</td>
+                <td><button class="btn-action delete btn-pagar">Pagar</button></td>
+            `;
+            
+            tr.querySelector('.btn-pagar').onclick = async () => {
+                if(confirm(`Confirmar pagamento de R$ ${val.toFixed(2)}?`)) {
+                    await deleteDoc(doc(db, "empresas", empresaId, "devedores", docSnap.id));
+                    await logActivity('fas fa-check', 'green', 'Dívida Paga', `Recebido de ${d.nome}`);
+                    carregarDevedores();
+                }
+            };
+            tbody.appendChild(tr);
+        });
+    } catch (e) { console.error("Erro devedores:", e); }
+}
+
+/* ==================================================================
+   5. OUTRAS FUNÇÕES (PRODUTOS, PERFIS, ETC)
+   ================================================================== */
 async function carregarPerfis() {
     const grid = document.getElementById('profile-grid');
     if(!grid) return;
@@ -273,7 +257,7 @@ function setupAdicionarProduto() {
     if(!form) return;
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const uid = getEmpresaId();
+        const empresaId = getEmpresaId();
         const sku = document.getElementById('sku-produto').value;
         const prod = {
             sku: sku,
@@ -286,7 +270,7 @@ function setupAdicionarProduto() {
             vencimento: document.getElementById('data-vencimento').value
         };
         try {
-            await setDoc(doc(db, "empresas", uid, "produtos", sku), prod);
+            await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
             alert("Produto Salvo!");
             window.location.href = 'produtos.html';
         } catch(e) { alert(e.message); }
@@ -296,18 +280,22 @@ function setupAdicionarProduto() {
 async function carregarProdutos() {
     const tbody = document.getElementById('product-table-body');
     if(!tbody) return;
-    const uid = getEmpresaId();
-    if(!uid) return;
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
 
     try {
-        const snap = await getDocs(collection(db, "empresas", uid, "produtos"));
+        const snap = await getDocs(collection(db, "empresas", empresaId, "produtos"));
         tbody.innerHTML = '';
-        if(snap.empty) {
+        cacheProdutos = [];
+        
+        if (snap.empty) {
             tbody.innerHTML = '<tr><td colspan="6">Nenhum produto.</td></tr>';
             return;
         }
+
         snap.forEach(d => {
             const p = d.data();
+            cacheProdutos.push(p);
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${p.sku}</td><td>${p.nome}</td><td>${p.categoria}</td>
@@ -316,7 +304,7 @@ async function carregarProdutos() {
             `;
             tr.querySelector('.delete').onclick = async () => {
                 if(confirm("Excluir produto?")) {
-                    await deleteDoc(doc(db, "empresas", uid, "produtos", p.sku));
+                    await deleteDoc(doc(db, "empresas", empresaId, "produtos", p.sku));
                     carregarProdutos();
                 }
             };
@@ -326,18 +314,18 @@ async function carregarProdutos() {
 }
 
 async function carregarDashboard() {
-    const uid = getEmpresaId();
-    if(!uid) return;
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
     
     // Contagem simples
-    const prods = await getDocs(collection(db, "empresas", uid, "produtos"));
+    const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
 
     // Feed
     const feed = document.getElementById('activity-feed-list');
     if(feed) {
-        const q = query(collection(db, "empresas", uid, "atividades"), orderBy("timestamp", "desc"), limit(5));
+        const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(5));
         const snap = await getDocs(q);
         feed.innerHTML = '';
         snap.forEach(d => {
@@ -353,9 +341,9 @@ async function carregarDashboard() {
 }
 
 async function carregarCategorias() {
-    const uid = getEmpresaId();
-    if(!uid) return;
-    const snap = await getDocs(query(collection(db, "empresas", uid, "categorias"), orderBy("nome")));
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
+    const snap = await getDocs(query(collection(db, "empresas", empresaId, "categorias"), orderBy("nome")));
     
     const selects = document.querySelectorAll('#categoria-produto, #filtro-categoria');
     selects.forEach(sel => {
@@ -387,8 +375,8 @@ function setupCategorias() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const nome = document.getElementById('nome-categoria').value;
-        const uid = getEmpresaId();
-        await addDoc(collection(db, "empresas", uid, "categorias"), { nome });
+        const empresaId = getEmpresaId();
+        await addDoc(collection(db, "empresas", empresaId, "categorias"), { nome });
         alert("Categoria salva!");
         document.getElementById('nome-categoria').value = '';
         carregarCategorias();
@@ -457,6 +445,7 @@ onAuthStateChanged(auth, (user) => {
             setupLogout();
         }
         
+        // Chamadas seguras (só rodam se o elemento existir)
         carregarCategorias(); 
         
         if (document.getElementById('profile-grid')) carregarPerfis();
