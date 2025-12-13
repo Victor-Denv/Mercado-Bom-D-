@@ -30,7 +30,7 @@ function getEmpresaId() {
     return empresaId;
 }
 
-// Função renomeada para bater com a chamada e corrigir o erro
+// CORREÇÃO: O nome da função agora é exatamente o que é chamado no código
 async function carregarHeaderUsuario() {
     const nomeEl = document.getElementById('header-profile-name');
     const picEl = document.getElementById('header-profile-pic');
