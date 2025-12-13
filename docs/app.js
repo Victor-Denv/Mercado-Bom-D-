@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL REORGANIZADA - VICTOR) === */
+/* === app.js (VERSÃO FINAL CORRIGIDA - COM SETUP LOGOUT) === */
 
 // 1. IMPORTAÇÕES
 import { 
@@ -15,20 +15,38 @@ import {
 
 import { auth, db } from './firebase-config.js';
 
-// 2. CONSTANTES E VARIÁVEIS GLOBAIS
+// 2. CONSTANTES
 const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
-let cacheCategorias = [];
-let deleteConfig = {}; 
+let deleteConfig = {};
 
 /* ==================================================================
-   3. FUNÇÕES GERAIS (DEFINIDAS PRIMEIRO PARA EVITAR ERROS)
+   3. FUNÇÕES GERAIS (DEFINIDAS PRIMEIRO)
    ================================================================== */
 
 function getEmpresaId() {
     const empresaId = localStorage.getItem('empresaId');
     if (!empresaId) console.warn("ID da Empresa não encontrado.");
     return empresaId;
+}
+
+// Função para fazer logout (CORREÇÃO: AGORA ELA EXISTE)
+function setupLogout() {
+    const btn = document.querySelector('.sidebar-footer a');
+    if (!btn) return;
+    
+    // Removemos listeners antigos clonando o botão
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    newBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (confirm("Sair do sistema?")) {
+            await signOut(auth);
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+    });
 }
 
 async function logActivity(icon, color, title, description) {
@@ -45,16 +63,16 @@ async function logActivity(icon, color, title, description) {
     } catch (e) { console.error('Log erro:', e.message); }
 }
 
-async function carregarDadosGlobaisUsuario() {
-    // Esta função foi renomeada/padronizada para evitar confusão
+async function carregarHeaderUsuario() {
     const nomeEl = document.getElementById('header-profile-name');
     const picEl = document.getElementById('header-profile-pic');
     const perfil = localStorage.getItem('currentProfile');
+    const uid = auth.currentUser ? auth.currentUser.uid : null;
     const empresaId = getEmpresaId();
 
     if (nomeEl && perfil) nomeEl.textContent = perfil;
     
-    if (empresaId && perfil && picEl) {
+    if (uid && perfil && picEl && empresaId) {
         try {
             const docSnap = await getDoc(doc(db, "empresas", empresaId, "perfis", perfil));
             if (docSnap.exists()) {
@@ -63,9 +81,6 @@ async function carregarDadosGlobaisUsuario() {
         } catch (e) { console.log("Erro foto header", e); }
     }
 }
-
-// Criando um alias para garantir compatibilidade caso algum lugar chame pelo nome antigo
-const carregarHeaderUsuario = carregarDadosGlobaisUsuario;
 
 function setupGlobalSearch() {
     const input = document.getElementById('global-search-input');
@@ -87,6 +102,7 @@ function setupGlobalSearch() {
             if(results) results.style.display = 'none';
             return;
         }
+        
         const filtrados = paginas.filter(p => p.nome.toLowerCase().includes(termo));
         
         if (results) {
@@ -102,7 +118,6 @@ function setupGlobalSearch() {
         }
     });
     
-    // Fecha ao clicar fora
     document.addEventListener('click', (e) => {
         if (results && !input.contains(e.target) && !results.contains(e.target)) {
             results.style.display = 'none';
@@ -147,37 +162,17 @@ async function carregarDropdownPerfis() {
     } catch(e) { console.error(e); }
 }
 
-function setupLogout() {
-    // Função auxiliar caso o dropdown falhe, tenta pegar o botão da sidebar
-    const btn = document.querySelector('.sidebar-footer a');
-    if (!btn) return;
-    
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-
-    newBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (confirm("Sair do sistema?")) {
-            await signOut(auth);
-            localStorage.clear();
-            window.location.href = 'index.html';
-        }
-    });
-}
-
 /* ==================================================================
-   4. FUNÇÕES ESPECÍFICAS (DEVEDORES, PRODUTOS, ETC)
+   4. FUNÇÕES ESPECÍFICAS (DEVEDORES)
    ================================================================== */
 
-// --- DEVEDORES ---
 function setupDevedores() {
     const form = document.getElementById('form-add-devedor');
     if (!form) return;
 
-    // Data automática
     const campoData = document.getElementById('data-divida');
     if (campoData && !campoData.value) {
-        // Formato compatível com input type="date": YYYY-MM-DD
+        // Formato YYYY-MM-DD
         const hoje = new Date();
         const ano = hoje.getFullYear();
         const mes = String(hoje.getMonth() + 1).padStart(2, '0');
@@ -199,9 +194,9 @@ function setupDevedores() {
 
         try {
             await addDoc(collection(db, "empresas", empresaId, "devedores"), devedor);
+            await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${devedor.nome}`);
             alert("Dívida salva com sucesso!");
             form.reset();
-            // Restaura a data de hoje
             if(campoData) {
                  const h = new Date();
                  campoData.value = `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
@@ -218,7 +213,7 @@ async function carregarDevedores() {
     if(!empresaId) return;
 
     try {
-        // Tenta buscar SEM ordenação primeiro para garantir compatibilidade com dados antigos
+        // Busca SEM ordenação primeiro para garantir que carrega tudo
         const devedoresRef = collection(db, "empresas", empresaId, "devedores");
         const snap = await getDocs(devedoresRef);
         
@@ -235,7 +230,7 @@ async function carregarDevedores() {
             let dataF = '-';
             if (d.data_divida) {
                 dataF = d.data_divida.split('-').reverse().join('/');
-            } else if (d.data) { // Compatibilidade com versões anteriores
+            } else if (d.data) { // Compatibilidade com versões antigas
                 dataF = d.data.split('-').reverse().join('/');
             }
 
@@ -250,7 +245,6 @@ async function carregarDevedores() {
                 <td><button class="btn-action delete btn-pagar">Pagar</button></td>
             `;
             
-            // Botão Pagar com delete direto
             tr.querySelector('.btn-pagar').onclick = async () => {
                 if(confirm(`Confirmar pagamento de R$ ${val.toFixed(2)}?`)) {
                     await deleteDoc(doc(db, "empresas", empresaId, "devedores", docSnap.id));
@@ -263,7 +257,55 @@ async function carregarDevedores() {
     } catch (e) { console.error("Erro devedores:", e); }
 }
 
-// --- PRODUTOS ---
+/* ==================================================================
+   5. OUTRAS FUNÇÕES (PRODUTOS, PERFIS, ETC)
+   ================================================================== */
+async function carregarPerfis() {
+    const grid = document.getElementById('profile-grid');
+    if(!grid) return;
+    const empresaId = getEmpresaId();
+    if(!empresaId) return;
+
+    const snap = await getDocs(collection(db, "empresas", empresaId, "perfis"));
+    grid.innerHTML = '';
+    snap.forEach(d => {
+        const p = d.data();
+        const div = document.createElement('div');
+        div.className = 'profile-card';
+        div.innerHTML = `<img src="${p.foto_perfil || PLACEHOLDER_IMG}" class="profile-card-pic"><span>${p.nome}</span>`;
+        div.onclick = () => {
+            localStorage.setItem('currentProfile', p.nome);
+            window.location.href = 'dashboard.html';
+        };
+        grid.appendChild(div);
+    });
+}
+
+function setupAdicionarProduto() {
+    const form = document.getElementById('form-add-product');
+    if(!form) return;
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const empresaId = getEmpresaId();
+        const sku = document.getElementById('sku-produto').value;
+        const prod = {
+            sku: sku,
+            nome: document.getElementById('nome-produto').value,
+            categoria: document.getElementById('categoria-produto').value,
+            custo: Number(document.getElementById('preco-custo').value),
+            venda: Number(document.getElementById('preco-venda').value),
+            qtd: Number(document.getElementById('qtd-inicial').value),
+            estoqueMinimo: Number(document.getElementById('estoque-minimo').value),
+            vencimento: document.getElementById('data-vencimento').value
+        };
+        try {
+            await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
+            alert("Produto Salvo!");
+            window.location.href = 'produtos.html';
+        } catch(e) { alert(e.message); }
+    });
+}
+
 async function carregarProdutos() {
     const tbody = document.getElementById('product-table-body');
     if(!tbody) return;
@@ -289,7 +331,6 @@ async function carregarProdutos() {
                 <td>${p.qtd}</td><td>R$ ${p.venda.toFixed(2)}</td>
                 <td><button class="btn-action delete">Excluir</button></td>
             `;
-            // Exclusão simplificada
             tr.querySelector('.delete').onclick = async () => {
                 if(confirm("Excluir produto?")) {
                     await deleteDoc(doc(db, "empresas", empresaId, "produtos", p.sku));
@@ -301,64 +342,14 @@ async function carregarProdutos() {
     } catch(e) { console.error(e); }
 }
 
-function setupAdicionarProduto() {
-    const form = document.getElementById('form-add-product');
-    if(!form) return;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const empresaId = getEmpresaId();
-        const sku = document.getElementById('sku-produto').value;
-        const prod = {
-            sku: sku,
-            nome: document.getElementById('nome-produto').value,
-            categoria_nome: document.getElementById('categoria-produto').value,
-            custo: Number(document.getElementById('preco-custo').value),
-            venda: Number(document.getElementById('preco-venda').value),
-            qtd: Number(document.getElementById('qtd-inicial').value),
-            estoque_minimo: Number(document.getElementById('estoque-minimo').value),
-            vencimento: document.getElementById('data-vencimento').value
-        };
-        try {
-            await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
-            alert("Produto Salvo!");
-            window.location.href = 'produtos.html';
-        } catch(e) { alert(e.message); }
-    });
-}
-
-// --- PERFIS ---
-async function carregarPerfis() {
-    const grid = document.getElementById('profile-grid');
-    if(!grid) return;
-    const empresaId = getEmpresaId();
-    if(!empresaId) return;
-
-    const snap = await getDocs(collection(db, "empresas", empresaId, "perfis"));
-    grid.innerHTML = '';
-    snap.forEach(d => {
-        const p = d.data();
-        const div = document.createElement('div');
-        div.className = 'profile-card';
-        div.innerHTML = `<img src="${p.foto_perfil || PLACEHOLDER_IMG}" class="profile-card-pic"><span>${p.nome}</span>`;
-        div.onclick = () => {
-            localStorage.setItem('currentProfile', p.nome);
-            window.location.href = 'dashboard.html';
-        };
-        grid.appendChild(div);
-    });
-}
-
-// --- DASHBOARD ---
 async function carregarDashboard() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
     
-    // Contadores simples
     const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
 
-    // Feed
     const feed = document.getElementById('activity-feed-list');
     if(feed) {
         const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(5));
@@ -376,7 +367,6 @@ async function carregarDashboard() {
     }
 }
 
-// --- CATEGORIAS ---
 async function carregarCategorias() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
@@ -464,7 +454,6 @@ onAuthStateChanged(auth, (user) => {
         localStorage.setItem('empresaId', user.uid);
         const perfil = localStorage.getItem('currentProfile');
 
-        // Redirecionamentos
         if (!perfil && !['perfis.html', 'configuracoes.html'].includes(currentPage)) {
             window.location.href = 'perfis.html';
             return;
@@ -474,15 +463,14 @@ onAuthStateChanged(auth, (user) => {
             return;
         }
 
-        // --- INICIALIZA A PÁGINA (CHAMANDO COM O NOME CORRETO) ---
+        // --- INICIALIZA A PÁGINA (CHAMANDO AS FUNÇÕES QUE AGORA EXISTEM) ---
         if(document.querySelector('.top-header')) {
-            carregarHeaderUsuario(); // Agora o nome bate com a função!
+            carregarHeaderUsuario();
             setupGlobalSearch();
             carregarDropdownPerfis();
-            setupLogout();
+            setupLogout(); // <--- AGORA ESTA FUNÇÃO EXISTE!
         }
         
-        // Chamadas seguras (só rodam se o elemento existir)
         carregarCategorias(); 
         
         if (document.getElementById('profile-grid')) carregarPerfis();
@@ -490,7 +478,6 @@ onAuthStateChanged(auth, (user) => {
         if (document.getElementById('form-add-product')) setupAdicionarProduto();
         if (document.querySelector('.stats-grid')) carregarDashboard();
         
-        // Devedores
         if (document.getElementById('form-add-devedor')) setupDevedores();
         if (document.getElementById('lista-devedores-body')) carregarDevedores();
         
@@ -502,7 +489,6 @@ onAuthStateChanged(auth, (user) => {
             window.location.href = 'index.html';
         }
         
-        // Lógica de Login/Cadastro (só roda se estiver deslogado)
         if (document.getElementById('form-login')) {
             document.getElementById('form-login').addEventListener('submit', async (e) => {
                 e.preventDefault();
