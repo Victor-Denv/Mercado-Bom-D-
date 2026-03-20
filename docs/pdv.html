@@ -71,9 +71,14 @@
             <div class="pdv-venda-col">
                 <div class="card" id="search-container">
                     <div class="form-group full-width">
-                        <label for="buscar-produto-pdv">Buscar Produto (SKU ou Nome)</label>
-                        <input type="text" id="buscar-produto-pdv" placeholder="Digite o SKU ou nome do produto..." autocomplete="off">
-                        
+                        <label style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-dark);">Buscar Produto (SKU ou Código de Barras)</label>
+<div style="display: flex; gap: 10px;">
+    <input type="text" id="codigo-manual" placeholder="Bipe ou digite o código..." style="flex: 1; padding: 12px; border: 1px solid var(--border-light); border-radius: 8px; font-size: 1rem; outline: none;">
+    
+    <button id="btn-scan-pdv" class="btn-primary" style="display: flex; align-items: center; gap: 8px;"><i class="fas fa-camera"></i> Ler Código</button>
+</div>
+
+<div id="pdv-camera-reader" style="width: 100%; display: none; margin-top: 15px; border-radius: 8px; overflow: hidden; border: 2px solid var(--primary-green);"></div>
                         <div id="suggestions-box-pdv" class="suggestions-list" style="display: none;">
                             </div>
                     </div>
@@ -160,7 +165,50 @@
             </form>
         </div>
     </div>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnScanPdv = document.getElementById('btn-scan-pdv');
+            const cameraReaderDiv = document.getElementById('pdv-camera-reader');
+            const codigoInput = document.getElementById('codigo-manual');
+            let html5QrcodeScanner = null;
 
+            if(btnScanPdv) {
+                btnScanPdv.addEventListener('click', () => {
+                    // Se a câmera estiver aberta, ele fecha
+                    if (cameraReaderDiv.style.display === 'block') {
+                        if(html5QrcodeScanner) html5QrcodeScanner.clear(); 
+                        cameraReaderDiv.style.display = 'none';
+                        btnScanPdv.innerHTML = '<i class="fas fa-camera"></i> Ler Código';
+                        btnScanPdv.classList.remove('btn-danger');
+                        btnScanPdv.classList.add('btn-primary');
+                    } 
+                    // Se estiver fechada, ele abre
+                    else {
+                        cameraReaderDiv.style.display = 'block';
+                        btnScanPdv.innerHTML = '<i class="fas fa-times"></i> Fechar Câmera';
+                        btnScanPdv.classList.remove('btn-primary');
+                        btnScanPdv.classList.add('btn-danger'); // Botão fica vermelho pra fechar
+                        
+                        html5QrcodeScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
+                        html5QrcodeScanner.render((texto) => {
+                            // Bipa, joga o número no input e dá um "Enter" falso pro seu sistema ler
+                            codigoInput.value = texto;
+                            new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
+                            
+                            const enterEvent = new KeyboardEvent('keypress', { key: 'Enter' });
+                            codigoInput.dispatchEvent(enterEvent);
+
+                            // Pausa o leitor por 2s para não bipar 5 vezes o mesmo produto
+                            html5QrcodeScanner.pause(true);
+                            setTimeout(() => html5QrcodeScanner.resume(), 2000);
+                        }, () => {});
+                    }
+                });
+            }
+        });
+    </script>
     <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -19,6 +19,34 @@ import { auth, db } from './firebase-config.js';
 const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
 let deleteConfig = {}; 
+// --- FUNÇÃO GLOBAL DO MODAL ---
+window.mostrarModal = function(titulo, mensagem, tipo = 'aviso') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('delete-modal');
+        if (!modal) { alert(mensagem); resolve(true); return; } 
+        
+        modal.querySelector('h2').innerText = titulo;
+        modal.querySelector('p').innerText = mensagem;
+        
+        const btnOk = document.getElementById('modal-btn-confirm');
+        const btnCancelar = document.getElementById('modal-btn-cancel');
+
+        modal.style.display = 'flex';
+
+        if (tipo === 'confirmacao') {
+            btnCancelar.style.display = 'block';
+            btnOk.innerText = "Sim";
+            btnOk.className = "btn-modal-danger"; 
+        } else {
+            btnCancelar.style.display = 'none';
+            btnOk.innerText = "OK";
+            btnOk.className = "btn-modal-confirm";
+        }
+
+        btnOk.onclick = () => { modal.style.display = 'none'; resolve(true); };
+        btnCancelar.onclick = () => { modal.style.display = 'none'; resolve(false); };
+    });
+};
 
 /* ==================================================================
    3. DEFINIÇÃO DAS FUNÇÕES (O "Manual de Instruções")
@@ -40,13 +68,18 @@ function setupLogout() {
 
     newBtn.addEventListener('click', async (e) => {
         e.preventDefault();
-        if (confirm("Sair do sistema?")) {
+        
+        // AQUI ESTÁ A MÁGICA DO NOVO MODAL
+        const querSair = await window.mostrarModal("Sair", "Deseja realmente sair do sistema?", "confirmacao");
+        
+        if (querSair) {
             await signOut(auth);
             localStorage.clear();
             window.location.href = 'index.html';
         }
     });
 }
+
 
 // --- FUNÇÃO DO CABEÇALHO ---
 async function carregarHeaderUsuario() {
