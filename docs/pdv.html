@@ -57,7 +57,6 @@
         <div class="page-header">
             <h1><i class="fas fa-cash-register"></i> Caixa (PDV)</h1>
             
-            <!-- BOTÕES DE AÇÃO: Sangria e Cancelar -->
             <div style="display: flex; gap: 10px;">
                 <button id="btn-sangria" class="btn-secondary" style="color: #d97706; border-color: #d97706;">
                     <i class="fas fa-hand-holding-usd"></i> Retirada
@@ -71,16 +70,16 @@
             <div class="pdv-venda-col">
                 <div class="card" id="search-container">
                     <div class="form-group full-width">
-                        <label style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-dark);">Buscar Produto (SKU ou Código de Barras)</label>
-<div style="display: flex; gap: 10px;">
-    <input type="text" id="codigo-manual" placeholder="Bipe ou digite o código..." style="flex: 1; padding: 12px; border: 1px solid var(--border-light); border-radius: 8px; font-size: 1rem; outline: none;">
-    
-    <button id="btn-scan-pdv" class="btn-primary" style="display: flex; align-items: center; gap: 8px;"><i class="fas fa-camera"></i> Ler Código</button>
-</div>
-
-<div id="pdv-camera-reader" style="width: 100%; display: none; margin-top: 15px; border-radius: 8px; overflow: hidden; border: 2px solid var(--primary-green);"></div>
-                        <div id="suggestions-box-pdv" class="suggestions-list" style="display: none;">
-                            </div>
+                       <label style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-dark);">Buscar Produto (SKU ou Código de Barras)</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="codigo-manual" placeholder="Bipe ou digite o código..." style="flex: 1; padding: 12px; border: 1px solid var(--border-light); border-radius: 8px; font-size: 1rem; outline: none;">
+                            
+                            <button id="btn-add-manual" class="btn-primary" style="width: auto; padding: 0 20px;" title="Adicionar ao Carrinho"><i class="fas fa-plus"></i></button>
+                            
+                            <button id="btn-scan-pdv" class="btn-primary" style="display: flex; align-items: center; gap: 8px;"><i class="fas fa-camera"></i> Ler Código</button>
+                        </div>
+                        <div id="pdv-camera-reader" style="width: 100%; display: none; margin-top: 15px; border-radius: 8px; overflow: hidden; border: 2px solid var(--primary-green);"></div>
+                        <div id="suggestions-box-pdv" class="suggestions-list" style="display: none;"></div>
                     </div>
                 </div>
 
@@ -111,7 +110,7 @@
                     
                     <div class="pdv-total-display">
                         <span>TOTAL</span>
-                        <strong id="pdv-total-valor">R$ 0,00</strong>
+                        <strong id="pdv-total-valor" data-valor="0">R$ 0,00</strong>
                     </div>
 
                     <div class="form-group">
@@ -130,7 +129,7 @@
                     </div>
 
                     <div class="form-actions" style="border-top: none; padding-top: 0;">
-                        <button type="submit" id="btn-finalizar-venda" class="btn-primary btn-full-width">
+                        <button type="button" id="btn-finalizar-venda" class="btn-primary btn-full-width">
                             <i class="fas fa-check-circle"></i> Finalizar Venda
                         </button>
                     </div>
@@ -141,7 +140,6 @@
 
     </main>
 
-    <!-- MODAL DE SANGRIA (RETIRADA) -->
     <div id="sangria-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <span class="close-sangria-icon" style="position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5rem;">&times;</span>
@@ -165,7 +163,21 @@
             </form>
         </div>
     </div>
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <div id="delete-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close-icon" onclick="document.getElementById('delete-modal').style.display='none'">&times;</span>
+            <i class="fas fa-exclamation-triangle modal-icon-alert"></i>
+            <h2>Aviso</h2>
+            <p>Mensagem</p>
+            <div class="modal-actions">
+                <button id="modal-btn-cancel" class="btn-secondary" style="display: none;">Cancelar</button>
+                <button id="modal-btn-confirm" class="btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script type="module" src="app.js"></script>
 
     <script type="module">
@@ -173,10 +185,10 @@
         import { doc, collection, getDocs, writeBatch, increment, setDoc, addDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
         let carrinho = [];
-        let produtosCache = []; // Catálogo na memória para bipar super rápido
+        let produtosCache = []; 
         const empresaId = localStorage.getItem('empresaId');
 
-        // 1. CARREGAR CATÁLOGO (Deixa o PDV super rápido)
+        // 1. CARREGAR CATÁLOGO NA MEMÓRIA
         async function carregarCatalogoLocal() {
             if(!empresaId) return;
             const snap = await getDocs(collection(db, "empresas", empresaId, "produtos"));
@@ -187,43 +199,63 @@
         }
         carregarCatalogoLocal();
 
-        // 2. INICIAR CÂMERA
-        let pdvScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
-        pdvScanner.render((textoDecodificado) => {
-            adicionarAoCarrinho(textoDecodificado);
-            pdvScanner.pause(true);
-            setTimeout(() => pdvScanner.resume(), 2000); 
-        }, () => {});
+        // 2. LÓGICA DA CÂMERA (COM CLIQUE AUTOMÁTICO)
+        const btnScanPdv = document.getElementById('btn-scan-pdv');
+        const cameraReaderDiv = document.getElementById('pdv-camera-reader');
+        const codigoInput = document.getElementById('codigo-manual');
+        const btnAddManual = document.getElementById('btn-add-manual');
+        let html5QrcodeScanner = null;
 
-        // 3. BUSCA MANUAL
-        document.getElementById('btn-add-manual').addEventListener('click', () => {
-            const val = document.getElementById('codigo-manual').value;
-            if(val) adicionarAoCarrinho(val);
+        if(btnScanPdv) {
+            btnScanPdv.addEventListener('click', () => {
+                if (cameraReaderDiv.style.display === 'block') {
+                    if(html5QrcodeScanner) html5QrcodeScanner.clear(); 
+                    cameraReaderDiv.style.display = 'none';
+                    btnScanPdv.innerHTML = '<i class="fas fa-camera"></i> Ler Código';
+                    btnScanPdv.classList.remove('btn-danger');
+                    btnScanPdv.classList.add('btn-primary');
+                } else {
+                    cameraReaderDiv.style.display = 'block';
+                    btnScanPdv.innerHTML = '<i class="fas fa-times"></i> Fechar Câmera';
+                    btnScanPdv.classList.remove('btn-primary');
+                    btnScanPdv.classList.add('btn-danger'); 
+                    
+                    html5QrcodeScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
+                    html5QrcodeScanner.render((texto) => {
+                        codigoInput.value = texto;
+                        new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
+                        if(btnAddManual) btnAddManual.click(); // Clica no + automaticamente
+                        
+                        html5QrcodeScanner.pause(true);
+                        setTimeout(() => html5QrcodeScanner.resume(), 2000);
+                    }, () => {});
+                }
+            });
+        }
+
+        // 3. BUSCA MANUAL / CLIQUE NO "+"
+        btnAddManual.addEventListener('click', () => {
+            if(codigoInput.value) adicionarAoCarrinho(codigoInput.value);
         });
-        document.getElementById('codigo-manual').addEventListener('keypress', (e) => {
+        codigoInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && e.target.value) adicionarAoCarrinho(e.target.value);
         });
 
-        // 4. ADICIONAR AO CARRINHO (Busca Dupla na Memória)
+        // 4. ADICIONAR AO CARRINHO (Busca Dupla)
         async function adicionarAoCarrinho(skuLido) {
-            skuLido = skuLido.trim(); // Tira espaços em branco
+            skuLido = skuLido.trim(); 
             if(!skuLido) return;
 
-            // Procura no SKU principal ou na lista de adicionais
-            const prod = produtosCache.find(p => 
-                p.sku === skuLido || 
-                (p.codigos_adicionais && p.codigos_adicionais.includes(skuLido))
-            );
+            const prod = produtosCache.find(p => p.sku === skuLido || (p.codigos_adicionais && p.codigos_adicionais.includes(skuLido)));
 
             if (!prod) { 
-                await window.mostrarModal("Não encontrado", "Este produto não está no estoque. Verifique se os códigos adicionais foram salvos corretamente.", "aviso"); 
-                document.getElementById('codigo-manual').value = '';
+                await window.mostrarModal("Não encontrado", "Este produto não está no estoque. Verifique os códigos adicionais.", "aviso"); 
+                codigoInput.value = '';
                 return; 
             }
             
             new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
             
-            // Agrupa no carrinho sempre usando o SKU principal
             const itemExistente = carrinho.find(i => i.sku === prod.sku);
             if (itemExistente) {
                 itemExistente.quantidade++;
@@ -231,70 +263,55 @@
                 carrinho.push({ sku: prod.sku, nome: prod.nome, preco: parseFloat(prod.venda)||0, quantidade: 1 });
             }
             
-            document.getElementById('codigo-manual').value = '';
+            codigoInput.value = '';
             atualizarCarrinho();
         }
 
         // 5. ATUALIZAR TELA E CALCULAR TROCO
+        const inputValorPago = document.getElementById('pdv-valor-pago');
+        const textoTroco = document.getElementById('pdv-troco-hint');
+        const valorTotalEl = document.getElementById('pdv-total-valor');
+
         function atualizarCarrinho() {
-            const tbody = document.getElementById('carrinho-body');
+            const tbody = document.getElementById('pdv-cart-body');
             tbody.innerHTML = '';
             let total = 0;
-            carrinho.forEach((item, i) => {
-                const sub = item.preco * item.quantidade;
-                total += sub;
-                tbody.innerHTML += `
-                    <tr>
-                        <td><strong>${item.nome}</strong><br><small style="color:var(--text-gray)">${item.sku}</small></td>
-                        <td style="display:flex; align-items:center; gap:8px;">
-                            <button onclick="mudarQtd(${i}, -1)" class="btn-secondary" style="padding:2px 8px;">-</button> 
-                            <span style="font-weight:600;">${item.quantidade}</span> 
-                            <button onclick="mudarQtd(${i}, 1)" class="btn-secondary" style="padding:2px 8px;">+</button>
-                        </td>
-                        <td>R$ ${item.preco.toFixed(2)}</td>
-                        <td><strong style="color:var(--primary-green)">R$ ${sub.toFixed(2)}</strong></td>
-                        <td><button onclick="remover(${i})" style="background:none; border:none; color:var(--danger-color); cursor:pointer;"><i class="fas fa-trash-alt"></i></button></td>
-                    </tr>`;
-            });
+
+            if (carrinho.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Carrinho vazio</td></tr>';
+            } else {
+                carrinho.forEach((item, i) => {
+                    const sub = item.preco * item.quantidade;
+                    total += sub;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${item.nome}</strong><br><small style="color:var(--text-gray)">${item.sku}</small></td>
+                            <td style="display:flex; align-items:center; gap:8px;">
+                                <button onclick="mudarQtd(${i}, -1)" class="btn-secondary" style="padding:2px 8px;">-</button> 
+                                <span style="font-weight:600;">${item.quantidade}</span> 
+                                <button onclick="mudarQtd(${i}, 1)" class="btn-secondary" style="padding:2px 8px;">+</button>
+                            </td>
+                            <td>R$ ${item.preco.toFixed(2)}</td>
+                            <td><strong style="color:var(--primary-green)">R$ ${sub.toFixed(2)}</strong></td>
+                            <td><button onclick="remover(${i})" style="background:none; border:none; color:var(--danger-color); cursor:pointer;"><i class="fas fa-trash-alt"></i></button></td>
+                        </tr>`;
+                });
+            }
             
-            document.getElementById('total-venda').textContent = `R$ ${total.toFixed(2)}`;
-            // Guarda o total num atributo escondido para calcular o troco
-            document.getElementById('total-venda').dataset.valor = total; 
+            valorTotalEl.textContent = `R$ ${total.toFixed(2)}`;
+            valorTotalEl.dataset.valor = total; 
             calcularTroco();
         }
 
         window.mudarQtd = (i, v) => { carrinho[i].quantidade += v; if(carrinho[i].quantidade <= 0) remover(i); else atualizarCarrinho(); }
         window.remover = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); }
 
-        // --- BOTÕES NOVOS: CANCELAR E RETIRADA ---
-
-        // Pega os botões pelo texto (já que eles não têm ID no seu HTML)
-        const botoes = document.querySelectorAll('button');
-        const btnRetirada = Array.from(botoes).find(b => b.textContent.includes('Retirada'));
-        const btnCancelar = Array.from(botoes).find(b => b.textContent.includes('Cancelar Venda'));
-        const inputValorPago = document.querySelector('input[placeholder="0,00"]'); // Pega o input de Valor Pago
-        const textoTroco = document.querySelector('p[style*="Troco"]'); // Pega o texto do Troco se existir
-
-        // Lógica do Cancelar Venda
-        if(btnCancelar) {
-            btnCancelar.addEventListener('click', async () => {
-                if(carrinho.length === 0) return;
-                const querCancelar = await window.mostrarModal("Cancelar Venda", "Deseja limpar o carrinho e cancelar a venda atual?", "confirmacao");
-                if (querCancelar) {
-                    carrinho = [];
-                    if(inputValorPago) inputValorPago.value = '';
-                    atualizarCarrinho();
-                }
-            });
-        }
-
-        // Lógica de Calcular o Troco Dinâmico
         function calcularTroco() {
             if(!inputValorPago || !textoTroco) return;
-            const total = parseFloat(document.getElementById('total-venda').dataset.valor) || 0;
+            const total = parseFloat(valorTotalEl.dataset.valor) || 0;
             const valorPago = parseFloat(inputValorPago.value.replace(',', '.')) || 0;
             
-            if (valorPago > total) {
+            if (valorPago > total && total > 0) {
                 const troco = valorPago - total;
                 textoTroco.textContent = `Troco: R$ ${troco.toFixed(2)}`;
                 textoTroco.style.color = "var(--success-color)";
@@ -306,20 +323,41 @@
         }
         if(inputValorPago) inputValorPago.addEventListener('input', calcularTroco);
 
-        // Lógica de Retirada (Sangria)
-        if(btnRetirada) {
-            btnRetirada.addEventListener('click', async () => {
-                const valorStr = prompt("Digite o valor da retirada do caixa (Ex: 50.00):");
-                if(!valorStr) return;
-                const valor = parseFloat(valorStr.replace(',', '.'));
-                if(isNaN(valor) || valor <= 0) return alert("Valor inválido.");
+        // 6. BOTÃO CANCELAR VENDA
+        const btnCancelarVenda = document.getElementById('btn-cancelar-venda');
+        if(btnCancelarVenda) {
+            btnCancelarVenda.addEventListener('click', async () => {
+                if(carrinho.length === 0) return;
+                const querCancelar = await window.mostrarModal("Cancelar Venda", "Deseja limpar o carrinho e cancelar a venda atual?", "confirmacao");
+                if (querCancelar) {
+                    carrinho = [];
+                    if(inputValorPago) inputValorPago.value = '';
+                    atualizarCarrinho();
+                }
+            });
+        }
 
-                const motivo = prompt("Qual o motivo da retirada?");
-                if(!motivo) return;
+        // 7. BOTÃO DE RETIRADA (SANGRIA) COM O SEU MODAL BONITO
+        const btnSangria = document.getElementById('btn-sangria');
+        const sangriaModal = document.getElementById('sangria-modal');
+        const formSangria = document.getElementById('form-sangria');
+        
+        const fecharSangria = () => { sangriaModal.style.display = 'none'; formSangria.reset(); };
+        
+        if(btnSangria) btnSangria.addEventListener('click', () => { sangriaModal.style.display = 'flex'; });
+        document.getElementById('btn-fechar-sangria').addEventListener('click', fecharSangria);
+        document.querySelector('.close-sangria-icon').addEventListener('click', fecharSangria);
+
+        if(formSangria) {
+            formSangria.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const valor = parseFloat(document.getElementById('valor-sangria').value);
+                const motivo = document.getElementById('motivo-sangria').value;
+                
+                if(isNaN(valor) || valor <= 0) return alert("Valor inválido.");
 
                 try {
                     const dataHoje = new Date().toLocaleDateString('pt-BR');
-                    // Tira o dinheiro do fechamento do dia
                     await setDoc(doc(db, "empresas", empresaId, "fechamentos", dataHoje), {
                         dinheiro: increment(-valor),
                         total: increment(-valor)
@@ -329,16 +367,17 @@
                         data: dataHoje, valor: valor, motivo: motivo, hora: new Date().toLocaleTimeString('pt-BR')
                     });
 
-                    await window.mostrarModal("Sucesso", `Retirada de R$ ${valor.toFixed(2)} registrada no caixa!`, "aviso");
+                    fecharSangria();
+                    await window.mostrarModal("Sucesso", `Retirada de R$ ${valor.toFixed(2)} registrada!`, "aviso");
                 } catch(e) { await window.mostrarModal("Erro", "Falha ao registrar retirada.", "aviso"); }
             });
         }
 
-        // 6. FINALIZAR VENDA
+        // 8. FINALIZAR VENDA
         document.getElementById('btn-finalizar-venda').addEventListener('click', async () => {
             if(carrinho.length === 0) { await window.mostrarModal("Aviso", "Carrinho vazio!", "aviso"); return; }
 
-            const pagto = document.getElementById('forma-pagamento').value;
+            const pagto = document.getElementById('pdv-tipo-pagamento').value;
             const total = carrinho.reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
             
             const querFinalizar = await window.mostrarModal("Confirmar Venda", `Total: R$ ${total.toFixed(2)}`, "confirmacao");
