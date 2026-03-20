@@ -166,49 +166,203 @@
         </div>
     </div>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const btnScanPdv = document.getElementById('btn-scan-pdv');
-            const cameraReaderDiv = document.getElementById('pdv-camera-reader');
-            const codigoInput = document.getElementById('codigo-manual');
-            let html5QrcodeScanner = null;
+    <script type="module" src="app.js"></script>
 
-            if(btnScanPdv) {
-                btnScanPdv.addEventListener('click', () => {
-                    // Se a câmera estiver aberta, ele fecha
-                    if (cameraReaderDiv.style.display === 'block') {
-                        if(html5QrcodeScanner) html5QrcodeScanner.clear(); 
-                        cameraReaderDiv.style.display = 'none';
-                        btnScanPdv.innerHTML = '<i class="fas fa-camera"></i> Ler Código';
-                        btnScanPdv.classList.remove('btn-danger');
-                        btnScanPdv.classList.add('btn-primary');
-                    } 
-                    // Se estiver fechada, ele abre
-                    else {
-                        cameraReaderDiv.style.display = 'block';
-                        btnScanPdv.innerHTML = '<i class="fas fa-times"></i> Fechar Câmera';
-                        btnScanPdv.classList.remove('btn-primary');
-                        btnScanPdv.classList.add('btn-danger'); // Botão fica vermelho pra fechar
-                        
-                        html5QrcodeScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
-                        html5QrcodeScanner.render((texto) => {
-                            // Bipa, joga o número no input e dá um "Enter" falso pro seu sistema ler
-                            codigoInput.value = texto;
-                            new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
-                            
-                            const enterEvent = new KeyboardEvent('keypress', { key: 'Enter' });
-                            codigoInput.dispatchEvent(enterEvent);
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { doc, collection, getDocs, writeBatch, increment, setDoc, addDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
-                            // Pausa o leitor por 2s para não bipar 5 vezes o mesmo produto
-                            html5QrcodeScanner.pause(true);
-                            setTimeout(() => html5QrcodeScanner.resume(), 2000);
-                        }, () => {});
-                    }
-                });
+        let carrinho = [];
+        let produtosCache = []; // Catálogo na memória para bipar super rápido
+        const empresaId = localStorage.getItem('empresaId');
+
+        // 1. CARREGAR CATÁLOGO (Deixa o PDV super rápido)
+        async function carregarCatalogoLocal() {
+            if(!empresaId) return;
+            const snap = await getDocs(collection(db, "empresas", empresaId, "produtos"));
+            produtosCache = [];
+            snap.forEach(doc => {
+                produtosCache.push({ id: doc.id, ...doc.data() });
+            });
+        }
+        carregarCatalogoLocal();
+
+        // 2. INICIAR CÂMERA
+        let pdvScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
+        pdvScanner.render((textoDecodificado) => {
+            adicionarAoCarrinho(textoDecodificado);
+            pdvScanner.pause(true);
+            setTimeout(() => pdvScanner.resume(), 2000); 
+        }, () => {});
+
+        // 3. BUSCA MANUAL
+        document.getElementById('btn-add-manual').addEventListener('click', () => {
+            const val = document.getElementById('codigo-manual').value;
+            if(val) adicionarAoCarrinho(val);
+        });
+        document.getElementById('codigo-manual').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.value) adicionarAoCarrinho(e.target.value);
+        });
+
+        // 4. ADICIONAR AO CARRINHO (Busca Dupla na Memória)
+        async function adicionarAoCarrinho(skuLido) {
+            skuLido = skuLido.trim(); // Tira espaços em branco
+            if(!skuLido) return;
+
+            // Procura no SKU principal ou na lista de adicionais
+            const prod = produtosCache.find(p => 
+                p.sku === skuLido || 
+                (p.codigos_adicionais && p.codigos_adicionais.includes(skuLido))
+            );
+
+            if (!prod) { 
+                await window.mostrarModal("Não encontrado", "Este produto não está no estoque. Verifique se os códigos adicionais foram salvos corretamente.", "aviso"); 
+                document.getElementById('codigo-manual').value = '';
+                return; 
             }
+            
+            new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
+            
+            // Agrupa no carrinho sempre usando o SKU principal
+            const itemExistente = carrinho.find(i => i.sku === prod.sku);
+            if (itemExistente) {
+                itemExistente.quantidade++;
+            } else {
+                carrinho.push({ sku: prod.sku, nome: prod.nome, preco: parseFloat(prod.venda)||0, quantidade: 1 });
+            }
+            
+            document.getElementById('codigo-manual').value = '';
+            atualizarCarrinho();
+        }
+
+        // 5. ATUALIZAR TELA E CALCULAR TROCO
+        function atualizarCarrinho() {
+            const tbody = document.getElementById('carrinho-body');
+            tbody.innerHTML = '';
+            let total = 0;
+            carrinho.forEach((item, i) => {
+                const sub = item.preco * item.quantidade;
+                total += sub;
+                tbody.innerHTML += `
+                    <tr>
+                        <td><strong>${item.nome}</strong><br><small style="color:var(--text-gray)">${item.sku}</small></td>
+                        <td style="display:flex; align-items:center; gap:8px;">
+                            <button onclick="mudarQtd(${i}, -1)" class="btn-secondary" style="padding:2px 8px;">-</button> 
+                            <span style="font-weight:600;">${item.quantidade}</span> 
+                            <button onclick="mudarQtd(${i}, 1)" class="btn-secondary" style="padding:2px 8px;">+</button>
+                        </td>
+                        <td>R$ ${item.preco.toFixed(2)}</td>
+                        <td><strong style="color:var(--primary-green)">R$ ${sub.toFixed(2)}</strong></td>
+                        <td><button onclick="remover(${i})" style="background:none; border:none; color:var(--danger-color); cursor:pointer;"><i class="fas fa-trash-alt"></i></button></td>
+                    </tr>`;
+            });
+            
+            document.getElementById('total-venda').textContent = `R$ ${total.toFixed(2)}`;
+            // Guarda o total num atributo escondido para calcular o troco
+            document.getElementById('total-venda').dataset.valor = total; 
+            calcularTroco();
+        }
+
+        window.mudarQtd = (i, v) => { carrinho[i].quantidade += v; if(carrinho[i].quantidade <= 0) remover(i); else atualizarCarrinho(); }
+        window.remover = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); }
+
+        // --- BOTÕES NOVOS: CANCELAR E RETIRADA ---
+
+        // Pega os botões pelo texto (já que eles não têm ID no seu HTML)
+        const botoes = document.querySelectorAll('button');
+        const btnRetirada = Array.from(botoes).find(b => b.textContent.includes('Retirada'));
+        const btnCancelar = Array.from(botoes).find(b => b.textContent.includes('Cancelar Venda'));
+        const inputValorPago = document.querySelector('input[placeholder="0,00"]'); // Pega o input de Valor Pago
+        const textoTroco = document.querySelector('p[style*="Troco"]'); // Pega o texto do Troco se existir
+
+        // Lógica do Cancelar Venda
+        if(btnCancelar) {
+            btnCancelar.addEventListener('click', async () => {
+                if(carrinho.length === 0) return;
+                const querCancelar = await window.mostrarModal("Cancelar Venda", "Deseja limpar o carrinho e cancelar a venda atual?", "confirmacao");
+                if (querCancelar) {
+                    carrinho = [];
+                    if(inputValorPago) inputValorPago.value = '';
+                    atualizarCarrinho();
+                }
+            });
+        }
+
+        // Lógica de Calcular o Troco Dinâmico
+        function calcularTroco() {
+            if(!inputValorPago || !textoTroco) return;
+            const total = parseFloat(document.getElementById('total-venda').dataset.valor) || 0;
+            const valorPago = parseFloat(inputValorPago.value.replace(',', '.')) || 0;
+            
+            if (valorPago > total) {
+                const troco = valorPago - total;
+                textoTroco.textContent = `Troco: R$ ${troco.toFixed(2)}`;
+                textoTroco.style.color = "var(--success-color)";
+                textoTroco.style.fontWeight = "bold";
+            } else {
+                textoTroco.textContent = `Troco: R$ 0,00`;
+                textoTroco.style.color = "var(--text-gray)";
+            }
+        }
+        if(inputValorPago) inputValorPago.addEventListener('input', calcularTroco);
+
+        // Lógica de Retirada (Sangria)
+        if(btnRetirada) {
+            btnRetirada.addEventListener('click', async () => {
+                const valorStr = prompt("Digite o valor da retirada do caixa (Ex: 50.00):");
+                if(!valorStr) return;
+                const valor = parseFloat(valorStr.replace(',', '.'));
+                if(isNaN(valor) || valor <= 0) return alert("Valor inválido.");
+
+                const motivo = prompt("Qual o motivo da retirada?");
+                if(!motivo) return;
+
+                try {
+                    const dataHoje = new Date().toLocaleDateString('pt-BR');
+                    // Tira o dinheiro do fechamento do dia
+                    await setDoc(doc(db, "empresas", empresaId, "fechamentos", dataHoje), {
+                        dinheiro: increment(-valor),
+                        total: increment(-valor)
+                    }, { merge: true });
+
+                    await addDoc(collection(db, "empresas", empresaId, "retiradas"), {
+                        data: dataHoje, valor: valor, motivo: motivo, hora: new Date().toLocaleTimeString('pt-BR')
+                    });
+
+                    await window.mostrarModal("Sucesso", `Retirada de R$ ${valor.toFixed(2)} registrada no caixa!`, "aviso");
+                } catch(e) { await window.mostrarModal("Erro", "Falha ao registrar retirada.", "aviso"); }
+            });
+        }
+
+        // 6. FINALIZAR VENDA
+        document.getElementById('btn-finalizar-venda').addEventListener('click', async () => {
+            if(carrinho.length === 0) { await window.mostrarModal("Aviso", "Carrinho vazio!", "aviso"); return; }
+
+            const pagto = document.getElementById('forma-pagamento').value;
+            const total = carrinho.reduce((acc, i) => acc + (i.preco * i.quantidade), 0);
+            
+            const querFinalizar = await window.mostrarModal("Confirmar Venda", `Total: R$ ${total.toFixed(2)}`, "confirmacao");
+            if(!querFinalizar) return; 
+            
+            try {
+                const batch = writeBatch(db);
+                carrinho.forEach(item => {
+                    batch.update(doc(db, "empresas", empresaId, "produtos", item.sku), { qtd: increment(-item.quantidade) });
+                });
+                await batch.commit();
+
+                const dataHoje = new Date().toLocaleDateString('pt-BR');
+                let incs = { total: increment(total), data: dataHoje, mes: new Date().getMonth()+1, ano: new Date().getFullYear() };
+                incs[pagto] = increment(total);
+                
+                await setDoc(doc(db, "empresas", empresaId, "fechamentos", dataHoje), incs, { merge: true });
+                
+                await window.mostrarModal("Sucesso!", "Venda finalizada com sucesso!", "aviso");
+                carrinho = []; 
+                if(inputValorPago) inputValorPago.value = '';
+                atualizarCarrinho();
+            } catch(e) { await window.mostrarModal("Erro", "Falha: " + e.message, "aviso"); }
         });
     </script>
-    <script type="module" src="app.js"></script>
 </body>
 </html>
