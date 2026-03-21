@@ -188,6 +188,45 @@
         let produtosCache = []; 
         const empresaId = localStorage.getItem('empresaId');
 
+        // --- FUNÇÕES DE FEEDBACK (BIP E AVISO VISUAL) ---
+        function tocarBip() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(880, ctx.currentTime); 
+                gain.gain.setValueAtTime(0.05, ctx.currentTime); 
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1); 
+            } catch(e) { console.log("Bip não suportado no navegador."); }
+        }
+
+        function mostrarAvisoVisual(nomeProduto) {
+            let container = document.getElementById('toast-container');
+            if(!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; pointer-events:none;';
+                document.body.appendChild(container);
+            }
+            
+            const toast = document.createElement('div');
+            toast.style.cssText = 'background:var(--primary-green); color:white; padding:15px 25px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.2); font-weight:600; font-size:1.1rem; display:flex; align-items:center; gap:10px; transition: all 0.3s ease; transform: translateX(120%); opacity:0;';
+            toast.innerHTML = `<i class="fas fa-check-circle"></i> ${nomeProduto} adicionado!`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => { toast.style.transform = 'translateX(0)'; toast.style.opacity = '1'; }, 10);
+            
+            setTimeout(() => { 
+                toast.style.transform = 'translateX(120%)'; toast.style.opacity = '0'; 
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+
         // 1. CARREGAR CATÁLOGO NA MEMÓRIA
         async function carregarCatalogoLocal() {
             if(!empresaId) return;
@@ -223,8 +262,8 @@
                     html5QrcodeScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
                     html5QrcodeScanner.render((texto) => {
                         codigoInput.value = texto;
-                        new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
-                        if(btnAddManual) btnAddManual.click(); // Clica no + automaticamente
+                        
+                        if(btnAddManual) btnAddManual.click(); // Clica no botão + sozinho!
                         
                         html5QrcodeScanner.pause(true);
                         setTimeout(() => html5QrcodeScanner.resume(), 2000);
@@ -241,7 +280,7 @@
             if (e.key === 'Enter' && e.target.value) adicionarAoCarrinho(e.target.value);
         });
 
-        // 4. ADICIONAR AO CARRINHO (Busca Dupla)
+        // 4. ADICIONAR AO CARRINHO (Busca Dupla + Bip e Toast)
         async function adicionarAoCarrinho(skuLido) {
             skuLido = skuLido.trim(); 
             if(!skuLido) return;
@@ -254,7 +293,9 @@
                 return; 
             }
             
-            new Audio('https://www.soundjay.com/buttons/beep-07a.mp3').play().catch(()=>{});
+            // FEEDBACK PARA O FUNCIONÁRIO
+            tocarBip();
+            mostrarAvisoVisual(prod.nome);
             
             const itemExistente = carrinho.find(i => i.sku === prod.sku);
             if (itemExistente) {
@@ -337,7 +378,7 @@
             });
         }
 
-        // 7. BOTÃO DE RETIRADA (SANGRIA) COM O SEU MODAL BONITO
+        // 7. BOTÃO DE RETIRADA (SANGRIA) COM O MODAL BONITO
         const btnSangria = document.getElementById('btn-sangria');
         const sangriaModal = document.getElementById('sangria-modal');
         const formSangria = document.getElementById('form-sangria');
