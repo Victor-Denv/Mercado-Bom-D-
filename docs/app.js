@@ -150,22 +150,48 @@ async function logActivity(icon, color, title, description) {
         const empresaId = getEmpresaId();
         const perfil = localStorage.getItem('currentProfile') || 'Sistema';
         if (!empresaId) return;
+
+        // Pega a data e a hora exatas do momento
+        const agora = new Date();
+        const dataStr = agora.toLocaleDateString('pt-BR');
+        const horaStr = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
         await addDoc(collection(db, "empresas", empresaId, "atividades"), {
             icon, color, title, description,
             perfil_nome: perfil,
             timestamp: serverTimestamp(),
-            time_string: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            time_string: `${dataStr} às ${horaStr}` // Agora salva Dia e Hora!
         });
     } catch (e) { console.error('Log erro:', e.message); }
 }
 
 // --- DROPDOWN DE PERFIS ---
 async function carregarDropdownPerfis() {
+    const dropdownContainer = document.getElementById('profile-dropdown');
     const list = document.getElementById('profile-dropdown-list');
-    if (!list) return;
+    
+    if (!list || !dropdownContainer) return;
+    
     const empresaId = getEmpresaId();
     if(!empresaId) return;
 
+    // 1. Faz a caixinha abrir e fechar quando você clica nela
+    dropdownContainer.onclick = function(e) {
+        e.stopPropagation(); // Evita que o clique feche imediatamente
+        const isVisible = list.style.display === 'block';
+        list.style.display = isVisible ? 'none' : 'block';
+        dropdownContainer.classList.toggle('active', !isVisible);
+    };
+
+    // 2. Fecha a caixinha se você clicar em qualquer outro lugar da tela
+    document.addEventListener('click', function(e) {
+        if (!dropdownContainer.contains(e.target)) {
+            list.style.display = 'none';
+            dropdownContainer.classList.remove('active');
+        }
+    });
+
+    // 3. Puxa os perfis do Firebase e coloca na lista
     try {
         const snap = await getDocs(query(collection(db, "empresas", empresaId, "perfis"), orderBy("nome")));
         list.innerHTML = '';
@@ -174,9 +200,10 @@ async function carregarDropdownPerfis() {
             const a = document.createElement('a');
             a.href = "#";
             a.innerHTML = `<img src="${p.foto_perfil || PLACEHOLDER_IMG}" class="dropdown-avatar"> ${p.nome}`;
-            a.onclick = () => {
+            a.onclick = (e) => {
+                e.preventDefault();
                 localStorage.setItem('currentProfile', p.nome);
-                location.reload();
+                location.reload(); // Recarrega a página com o novo perfil
             };
             list.appendChild(a);
         });
@@ -185,8 +212,10 @@ async function carregarDropdownPerfis() {
         sair.innerHTML = '<i class="fas fa-sign-out-alt"></i> Sair';
         sair.style.borderTop = "1px solid #eee";
         sair.style.marginTop = "5px";
-        sair.onclick = async () => {
-            if(confirm("Sair do sistema?")) {
+        sair.onclick = async (e) => {
+            e.preventDefault();
+            const querSair = await window.mostrarModal("Sair", "Deseja realmente sair do sistema?", "confirmacao");
+            if(querSair) {
                 await signOut(auth);
                 localStorage.clear();
                 window.location.href = 'index.html';
@@ -398,24 +427,35 @@ async function carregarDashboard() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
     
-    // Contagem simples
+    // Contagem simples de Produtos
     const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
 
-    // Feed
+    // Feed de Atividades (Histórico)
     const feed = document.getElementById('activity-feed-list');
     if(feed) {
-        const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(5));
+        // Aumentamos o limite para 50 para você ver bastante histórico
+        const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(50));
         const snap = await getDocs(q);
+        
         feed.innerHTML = '';
+        
+        if(snap.empty) {
+            feed.innerHTML = '<li style="padding: 15px; color: var(--text-gray); text-align: center;">Nenhuma atividade recente.</li>';
+            return;
+        }
+
         snap.forEach(d => {
             const a = d.data();
             feed.innerHTML += `
                 <li class="feed-item">
                     <div class="activity-icon ${a.color}"><i class="${a.icon}"></i></div>
-                    <div class="activity-details"><strong>${a.perfil_nome}</strong> <span>${a.description}</span></div>
-                    <span class="activity-time">${a.time_string}</span>
+                    <div class="activity-details">
+                        <strong>${a.title}</strong> 
+                        <span>${a.description} (${a.perfil_nome})</span>
+                    </div>
+                    <span class="activity-time">${a.time_string || ''}</span>
                 </li>`;
         });
     }
