@@ -1,4 +1,4 @@
-/* === app.js (VERSÃO FINAL BLINDADA) === */
+/* === app.js (VERSÃO FINAL COM RELATÓRIOS) === */
 
 // 1. IMPORTAÇÕES
 import { 
@@ -19,6 +19,7 @@ import { auth, db } from './firebase-config.js';
 const PLACEHOLDER_IMG = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNKfj6RsyRZqO4nnWkPFrYMmgrzDmyG31pFQ&s';
 let cacheProdutos = [];
 let deleteConfig = {}; 
+
 // --- FUNÇÃO GLOBAL DO MODAL ---
 window.mostrarModal = function(titulo, mensagem, tipo = 'aviso') {
     return new Promise((resolve) => {
@@ -58,7 +59,7 @@ function getEmpresaId() {
     return empresaId;
 }
 
-// --- FUNÇÃO DE LOGOUT (AGORA ESTÁ AQUI EM CIMA) ---
+// --- FUNÇÃO DE LOGOUT ---
 function setupLogout() {
     const btn = document.querySelector('.sidebar-footer a');
     if (!btn) return;
@@ -68,10 +69,7 @@ function setupLogout() {
 
     newBtn.addEventListener('click', async (e) => {
         e.preventDefault();
-        
-        // AQUI ESTÁ A MÁGICA DO NOVO MODAL
         const querSair = await window.mostrarModal("Sair", "Deseja realmente sair do sistema?", "confirmacao");
-        
         if (querSair) {
             await signOut(auth);
             localStorage.clear();
@@ -79,7 +77,6 @@ function setupLogout() {
         }
     });
 }
-
 
 // --- FUNÇÃO DO CABEÇALHO ---
 async function carregarHeaderUsuario() {
@@ -151,7 +148,6 @@ async function logActivity(icon, color, title, description) {
         const perfil = localStorage.getItem('currentProfile') || 'Sistema';
         if (!empresaId) return;
 
-        // Pega a data e a hora exatas do momento
         const agora = new Date();
         const dataStr = agora.toLocaleDateString('pt-BR');
         const horaStr = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -160,7 +156,7 @@ async function logActivity(icon, color, title, description) {
             icon, color, title, description,
             perfil_nome: perfil,
             timestamp: serverTimestamp(),
-            time_string: `${dataStr} às ${horaStr}` // Agora salva Dia e Hora!
+            time_string: `${dataStr} às ${horaStr}`
         });
     } catch (e) { console.error('Log erro:', e.message); }
 }
@@ -175,15 +171,13 @@ async function carregarDropdownPerfis() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
 
-    // 1. Faz a caixinha abrir e fechar quando você clica nela
     dropdownContainer.onclick = function(e) {
-        e.stopPropagation(); // Evita que o clique feche imediatamente
+        e.stopPropagation();
         const isVisible = list.style.display === 'block';
         list.style.display = isVisible ? 'none' : 'block';
         dropdownContainer.classList.toggle('active', !isVisible);
     };
 
-    // 2. Fecha a caixinha se você clicar em qualquer outro lugar da tela
     document.addEventListener('click', function(e) {
         if (!dropdownContainer.contains(e.target)) {
             list.style.display = 'none';
@@ -191,7 +185,6 @@ async function carregarDropdownPerfis() {
         }
     });
 
-    // 3. Puxa os perfis do Firebase e coloca na lista
     try {
         const snap = await getDocs(query(collection(db, "empresas", empresaId, "perfis"), orderBy("nome")));
         list.innerHTML = '';
@@ -203,7 +196,7 @@ async function carregarDropdownPerfis() {
             a.onclick = (e) => {
                 e.preventDefault();
                 localStorage.setItem('currentProfile', p.nome);
-                location.reload(); // Recarrega a página com o novo perfil
+                location.reload(); 
             };
             list.appendChild(a);
         });
@@ -225,8 +218,156 @@ async function carregarDropdownPerfis() {
     } catch(e) { console.error(e); }
 }
 
+
 /* ==================================================================
-   4. FUNÇÕES ESPECÍFICAS (DEVEDORES)
+   4. FUNÇÕES DOS NOVOS RELATÓRIOS DO ESTOQUE
+   ================================================================== */
+
+async function carregarRelatorioVendas() {
+    const tbody = document.getElementById('sales-report-body');
+    if (!tbody) return;
+    const empresaId = getEmpresaId();
+    
+    try {
+        const snap = await getDocs(query(collection(db, "empresas", empresaId, "fechamentos")));
+        tbody.innerHTML = '';
+        if (snap.empty) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-gray); padding: 20px;">Nenhuma venda diária registrada.</td></tr>';
+            return;
+        }
+
+        let fechamentos = [];
+        snap.forEach(doc => fechamentos.push({ id: doc.id, ...doc.data() }));
+        
+        // Coloca os dias mais recentes no topo
+        fechamentos.reverse();
+
+        fechamentos.forEach(f => {
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${f.id}</strong></td>
+                    <td style="color: var(--primary-green); font-weight: bold; font-size: 1.1rem;">R$ ${(f.total||0).toFixed(2)}</td>
+                    <td>R$ ${(f.cartao||0).toFixed(2)}</td>
+                    <td>R$ ${(f.dinheiro||0).toFixed(2)}</td>
+                    <td>R$ ${(f.pix||0).toFixed(2)}</td>
+                    <td style="color: #d97706; font-weight: bold;">R$ ${(f.fundo_caixa||0).toFixed(2)}</td>
+                </tr>
+            `;
+        });
+    } catch (e) { console.error(e); }
+}
+
+async function carregarRelatorioEstoqueBaixo() {
+    const tbody = document.getElementById('stock-low-report-body');
+    if (!tbody) return;
+    const empresaId = getEmpresaId();
+    
+    try {
+        const snap = await getDocs(collection(db, "empresas", empresaId, "produtos"));
+        tbody.innerHTML = '';
+        let itensAbaixoDoEstoque = 0;
+
+        snap.forEach(doc => {
+            const p = doc.data();
+            const min = p.estoqueMinimo || 10;
+            if (p.qtd <= min) {
+                itensAbaixoDoEstoque++;
+                tbody.innerHTML += `
+                    <tr>
+                        <td><small style="color:var(--text-gray)">${p.sku}</small></td>
+                        <td><strong>${p.nome}</strong></td>
+                        <td>${p.categoria || 'Geral'}</td>
+                        <td style="color: red; font-weight: bold; font-size: 1.1rem;">${p.qtd}</td>
+                        <td>${min}</td>
+                    </tr>
+                `;
+            }
+        });
+
+        if(itensAbaixoDoEstoque === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--primary-green); font-weight: bold; padding: 20px;">🎉 Todo o seu estoque está abastecido!</td></tr>';
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function carregarRelatorioInventario() {
+    const tbody = document.getElementById('inventory-report-body');
+    const footerTotal = document.getElementById('inventory-total-footer');
+    if (!tbody) return;
+    const empresaId = getEmpresaId();
+    
+    try {
+        const snap = await getDocs(collection(db, "empresas", empresaId, "produtos"));
+        tbody.innerHTML = '';
+        let valorTotalEstoque = 0;
+
+        if (snap.empty) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-gray); padding: 20px;">Nenhum produto em estoque.</td></tr>';
+            return;
+        }
+
+        snap.forEach(doc => {
+            const p = doc.data();
+            const custo = parseFloat(p.custo) || 0;
+            const qtd = parseInt(p.qtd) || 0;
+            const subtotal = custo * qtd;
+            
+            valorTotalEstoque += subtotal;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${p.nome}</strong><br><small style="color:var(--text-gray)">${p.sku}</small></td>
+                    <td>${qtd}</td>
+                    <td>R$ ${custo.toFixed(2)}</td>
+                    <td><strong style="color: var(--primary-green);">R$ ${subtotal.toFixed(2)}</strong></td>
+                </tr>
+            `;
+        });
+
+        if(footerTotal) footerTotal.textContent = `R$ ${valorTotalEstoque.toFixed(2)}`;
+    } catch (e) { console.error(e); }
+}
+
+async function carregarRelatorioPerdas() {
+    const tbody = document.getElementById('losses-report-body');
+    const footerTotal = document.getElementById('losses-total-footer');
+    if (!tbody) return;
+    const empresaId = getEmpresaId();
+    
+    try {
+        // Puxa as "Sangrias" e Retiradas que fizemos no PDV
+        const snap = await getDocs(collection(db, "empresas", empresaId, "retiradas"));
+        tbody.innerHTML = '';
+        let valorTotalPerdas = 0;
+
+        if (snap.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-gray); padding: 20px;">Nenhuma perda ou retirada registrada.</td></tr>';
+            return;
+        }
+
+        snap.forEach(doc => {
+            const p = doc.data();
+            const valor = parseFloat(p.valor) || 0;
+            valorTotalPerdas += valor;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${p.data}</strong> às ${p.hora || ''}</td>
+                    <td>Retirada de Caixa</td>
+                    <td>-</td>
+                    <td>${p.motivo || 'Sangria/Ajuste'}</td>
+                    <td style="color: red; font-weight: bold;">R$ ${valor.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        if(footerTotal) footerTotal.textContent = `R$ ${valorTotalPerdas.toFixed(2)}`;
+    } catch (e) { console.error(e); }
+}
+
+
+/* ==================================================================
+   5. OUTRAS FUNÇÕES (PRODUTOS, PERFIS, DEVEDORES ETC)
    ================================================================== */
 
 function setupDevedores() {
@@ -257,14 +398,14 @@ function setupDevedores() {
         try {
             await addDoc(collection(db, "empresas", empresaId, "devedores"), devedor);
             await logActivity('fas fa-user-clock', 'red', 'Novo Fiado', `Cliente: ${devedor.nome}`);
-            alert("Dívida salva com sucesso!");
+            await window.mostrarModal("Sucesso", "Dívida salva com sucesso!", "aviso");
             form.reset();
             if(campoData) {
                  const h = new Date();
                  campoData.value = `${h.getFullYear()}-${String(h.getMonth()+1).padStart(2,'0')}-${String(h.getDate()).padStart(2,'0')}`;
             }
             carregarDevedores(); 
-        } catch (error) { alert("Erro ao salvar: " + error.message); }
+        } catch (error) { await window.mostrarModal("Erro", "Falha ao salvar.", "aviso"); }
     });
 }
 
@@ -275,7 +416,6 @@ async function carregarDevedores() {
     if(!empresaId) return;
 
     try {
-        // Busca SEM ordenação primeiro para garantir compatibilidade
         const devedoresRef = collection(db, "empresas", empresaId, "devedores");
         const snap = await getDocs(devedoresRef);
         
@@ -288,7 +428,6 @@ async function carregarDevedores() {
         snap.forEach(docSnap => {
             const d = docSnap.data();
             
-            // Compatibilidade de data
             let dataF = '-';
             if (d.data_divida) {
                 dataF = d.data_divida.split('-').reverse().join('/');
@@ -308,7 +447,8 @@ async function carregarDevedores() {
             `;
             
             tr.querySelector('.btn-pagar').onclick = async () => {
-                if(confirm(`Confirmar pagamento de R$ ${val.toFixed(2)}?`)) {
+                const querPagar = await window.mostrarModal("Pagamento", `Confirmar recebimento de R$ ${val.toFixed(2)} de ${d.nome}?`, "confirmacao");
+                if(querPagar) {
                     await deleteDoc(doc(db, "empresas", empresaId, "devedores", docSnap.id));
                     await logActivity('fas fa-check', 'green', 'Dívida Paga', `Recebido de ${d.nome}`);
                     carregarDevedores();
@@ -319,9 +459,6 @@ async function carregarDevedores() {
     } catch (e) { console.error("Erro devedores:", e); }
 }
 
-/* ==================================================================
-   5. OUTRAS FUNÇÕES (PRODUTOS, PERFIS, ETC)
-   ================================================================== */
 async function carregarPerfis() {
     const grid = document.getElementById('profile-grid');
     if(!grid) return;
@@ -351,7 +488,6 @@ function setupAdicionarProduto() {
         const empresaId = getEmpresaId();
         const sku = document.getElementById('sku-produto').value;
         
-        // Pega os códigos extras
         const campoExtras = document.getElementById('codigos-adicionais');
         let codigosArray = [];
         if (campoExtras && campoExtras.value) {
@@ -372,7 +508,6 @@ function setupAdicionarProduto() {
 
         try {
             await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
-            // MÁGICA: O Modal bonito entra aqui!
             await window.mostrarModal("Sucesso!", "Produto salvo com sucesso no estoque.", "aviso");
             window.location.href = 'produtos.html';
         } catch(e) { 
@@ -380,6 +515,7 @@ function setupAdicionarProduto() {
         }
     });
 }
+
 async function carregarProdutos() {
     const tbody = document.getElementById('product-table-body');
     if(!tbody) return;
@@ -409,7 +545,6 @@ async function carregarProdutos() {
                 <td><button class="btn-action delete" style="padding: 8px 12px;"><i class="fas fa-trash-alt"></i> Excluir</button></td>
             `;
             
-            // MÁGICA: Modal de Confirmação Vermelho
             tr.querySelector('.delete').onclick = async () => {
                 const querExcluir = await window.mostrarModal("Excluir Produto", `Tem certeza que deseja apagar o produto "${p.nome}"?`, "confirmacao");
                 if(querExcluir) {
@@ -427,15 +562,12 @@ async function carregarDashboard() {
     const empresaId = getEmpresaId();
     if(!empresaId) return;
     
-    // Contagem simples de Produtos
     const prods = await getDocs(collection(db, "empresas", empresaId, "produtos"));
     const elProd = document.querySelector('.stat-icon.green + div strong');
     if(elProd) elProd.textContent = prods.size;
 
-    // Feed de Atividades (Histórico)
     const feed = document.getElementById('activity-feed-list');
     if(feed) {
-        // Aumentamos o limite para 50 para você ver bastante histórico
         const q = query(collection(db, "empresas", empresaId, "atividades"), orderBy("timestamp", "desc"), limit(50));
         const snap = await getDocs(q);
         
@@ -498,7 +630,7 @@ function setupCategorias() {
         const nome = document.getElementById('nome-categoria').value;
         const empresaId = getEmpresaId();
         await addDoc(collection(db, "empresas", empresaId, "categorias"), { nome });
-        alert("Categoria salva!");
+        await window.mostrarModal("Sucesso", "Categoria salva!", "aviso");
         document.getElementById('nome-categoria').value = '';
         carregarCategorias();
     });
@@ -521,25 +653,24 @@ async function carregarGerenciarPerfis() {
         const nome = document.getElementById('nome-perfil').value;
         try {
             await setDoc(doc(db, "empresas", uid, "perfis", nome), { nome: nome, foto_perfil: PLACEHOLDER_IMG });
-            alert("Perfil criado!");
+            await window.mostrarModal("Sucesso", "Perfil criado!", "aviso");
             document.getElementById('nome-perfil').value = '';
             atualizar();
-        } catch (e) { alert(e.message); }
+        } catch (e) { await window.mostrarModal("Erro", e.message, "aviso"); }
     });
 }
 
+
 /* ==================================================================
-   6. EXECUÇÃO PRINCIPAL (SISTEMA DE ROTAS)
+   6. EXECUÇÃO PRINCIPAL (SISTEMA DE ROTAS MESTRE)
    ================================================================== */
 
-// Menu Mobile
 const btnMenu = document.getElementById('btn-menu-mobile');
 const sidebar = document.querySelector('.sidebar');
 if (btnMenu && sidebar) {
     btnMenu.addEventListener('click', () => sidebar.classList.toggle('mobile-active'));
 }
 
-// Auth State - O Cérebro do App
 onAuthStateChanged(auth, (user) => {
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     const publicas = ['index.html', 'cadastro.html'];
@@ -548,7 +679,6 @@ onAuthStateChanged(auth, (user) => {
         localStorage.setItem('empresaId', user.uid);
         const perfil = localStorage.getItem('currentProfile');
 
-        // Redirecionamentos
         if (!perfil && !['perfis.html', 'configuracoes.html'].includes(currentPage)) {
             window.location.href = 'perfis.html';
             return;
@@ -558,47 +688,45 @@ onAuthStateChanged(auth, (user) => {
             return;
         }
 
-        // --- INICIALIZA A PÁGINA (CHAMANDO AS FUNÇÕES QUE AGORA EXISTEM) ---
-        // Verificações "if" para evitar erros se a função ainda não carregou
+        // CARREGA O CABEÇALHO GERAL
         if(typeof carregarHeaderUsuario === 'function' && document.querySelector('.top-header')) {
             carregarHeaderUsuario(); 
             setupGlobalSearch();
             carregarDropdownPerfis();
-            setupLogout(); // <--- AGORA ESTA FUNÇÃO EXISTE!
+            setupLogout(); 
         }
         
-        // Chamadas seguras
+        // CHAMA AS FUNÇÕES DE CADA PÁGINA ESPECÍFICA
         if(typeof carregarCategorias === 'function') carregarCategorias(); 
-        
         if (document.getElementById('profile-grid') && typeof carregarPerfis === 'function') carregarPerfis();
         if (document.getElementById('product-table-body') && typeof carregarProdutos === 'function') carregarProdutos();
         if (document.getElementById('form-add-product') && typeof setupAdicionarProduto === 'function') setupAdicionarProduto();
         if (document.querySelector('.stats-grid') && typeof carregarDashboard === 'function') carregarDashboard();
-        
-        // Devedores
         if (document.getElementById('form-add-devedor') && typeof setupDevedores === 'function') setupDevedores();
         if (document.getElementById('lista-devedores-body') && typeof carregarDevedores === 'function') carregarDevedores();
-        
         if (document.getElementById('form-add-categoria') && typeof setupCategorias === 'function') setupCategorias();
         if (document.getElementById('form-add-perfil') && typeof carregarGerenciarPerfis === 'function') carregarGerenciarPerfis();
+
+        // CHAMA OS 4 RELATÓRIOS
+        if (document.getElementById('sales-report-body') && typeof carregarRelatorioVendas === 'function') carregarRelatorioVendas();
+        if (document.getElementById('stock-low-report-body') && typeof carregarRelatorioEstoqueBaixo === 'function') carregarRelatorioEstoqueBaixo();
+        if (document.getElementById('inventory-report-body') && typeof carregarRelatorioInventario === 'function') carregarRelatorioInventario();
+        if (document.getElementById('losses-report-body') && typeof carregarRelatorioPerdas === 'function') carregarRelatorioPerdas();
 
     } else {
         if (!publicas.includes(currentPage)) {
             window.location.href = 'index.html';
         }
         
-        // Lógica de Login/Cadastro
         if (document.getElementById('form-login')) {
             document.getElementById('form-login').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 try {
-                    await signInWithEmailAndPassword(auth, 
-                        document.getElementById('email').value, 
-                        document.getElementById('senha').value
-                    );
-                } catch(err) { alert("Erro login: " + err.message); }
+                    await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('senha').value);
+                } catch(err) { await window.mostrarModal("Acesso Negado", "Email ou senha incorretos", "aviso"); }
             });
         }
+
         if (document.getElementById('form-cadastro')) {
             document.getElementById('form-cadastro').addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -612,9 +740,9 @@ onAuthStateChanged(auth, (user) => {
                     batch.set(doc(db, "empresas", uid), { emailAdmin: email, criadoEm: serverTimestamp() });
                     batch.set(doc(db, "empresas", uid, "perfis", "Admin"), { nome: "Admin", foto_perfil: PLACEHOLDER_IMG });
                     await batch.commit();
-                    alert("Conta criada!");
+                    alert("Conta criada com sucesso! Você já pode entrar.");
                     window.location.href = 'index.html';
-                } catch(err) { alert("Erro cadastro: " + err.message); }
+                } catch(err) { alert("Erro ao criar conta: " + err.message); }
             });
         }
     }
