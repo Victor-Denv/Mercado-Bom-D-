@@ -321,6 +321,14 @@ function setupAdicionarProduto() {
         e.preventDefault();
         const empresaId = getEmpresaId();
         const sku = document.getElementById('sku-produto').value;
+        
+        // Pega os códigos extras
+        const campoExtras = document.getElementById('codigos-adicionais');
+        let codigosArray = [];
+        if (campoExtras && campoExtras.value) {
+            codigosArray = campoExtras.value.split(',').map(c => c.trim()).filter(c => c !== '');
+        }
+
         const prod = {
             sku: sku,
             nome: document.getElementById('nome-produto').value,
@@ -328,17 +336,21 @@ function setupAdicionarProduto() {
             custo: Number(document.getElementById('preco-custo').value),
             venda: Number(document.getElementById('preco-venda').value),
             qtd: Number(document.getElementById('qtd-inicial').value),
-            estoqueMinimo: Number(document.getElementById('estoque-minimo').value),
-            vencimento: document.getElementById('data-vencimento').value
+            estoqueMinimo: Number(document.getElementById('estoque-minimo').value) || 10,
+            vencimento: document.getElementById('data-vencimento') ? document.getElementById('data-vencimento').value : '',
+            codigos_adicionais: codigosArray
         };
+
         try {
             await setDoc(doc(db, "empresas", empresaId, "produtos", sku), prod);
-            alert("Produto Salvo!");
+            // MÁGICA: O Modal bonito entra aqui!
+            await window.mostrarModal("Sucesso!", "Produto salvo com sucesso no estoque.", "aviso");
             window.location.href = 'produtos.html';
-        } catch(e) { alert(e.message); }
+        } catch(e) { 
+            await window.mostrarModal("Erro", "Falha ao salvar: " + e.message, "aviso"); 
+        }
     });
 }
-
 async function carregarProdutos() {
     const tbody = document.getElementById('product-table-body');
     if(!tbody) return;
@@ -351,7 +363,7 @@ async function carregarProdutos() {
         cacheProdutos = [];
         
         if (snap.empty) {
-            tbody.innerHTML = '<tr><td colspan="6">Nenhum produto.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-gray);">Nenhum produto cadastrado.</td></tr>';
             return;
         }
 
@@ -360,13 +372,20 @@ async function carregarProdutos() {
             cacheProdutos.push(p);
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${p.sku}</td><td>${p.nome}</td><td>${p.categoria_nome || ''}</td>
-                <td>${p.qtd}</td><td>R$ ${p.venda.toFixed(2)}</td>
-                <td><button class="btn-action delete">Excluir</button></td>
+                <td>${p.sku}</td>
+                <td><strong>${p.nome}</strong></td>
+                <td>${p.categoria || 'Geral'}</td>
+                <td><strong style="color: ${p.qtd <= (p.estoqueMinimo || 10) ? 'red' : 'var(--text-dark)'}">${p.qtd}</strong></td>
+                <td>R$ ${p.venda.toFixed(2)}</td>
+                <td><button class="btn-action delete" style="padding: 8px 12px;"><i class="fas fa-trash-alt"></i> Excluir</button></td>
             `;
+            
+            // MÁGICA: Modal de Confirmação Vermelho
             tr.querySelector('.delete').onclick = async () => {
-                if(confirm("Excluir produto?")) {
+                const querExcluir = await window.mostrarModal("Excluir Produto", `Tem certeza que deseja apagar o produto "${p.nome}"?`, "confirmacao");
+                if(querExcluir) {
                     await deleteDoc(doc(db, "empresas", empresaId, "produtos", p.sku));
+                    await window.mostrarModal("Excluído", "O produto foi removido com sucesso.", "aviso");
                     carregarProdutos();
                 }
             };

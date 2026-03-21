@@ -58,6 +58,9 @@
             <h1><i class="fas fa-cash-register"></i> Caixa (PDV)</h1>
             
             <div style="display: flex; gap: 10px;">
+                <button id="btn-abrir-caixa-pdv" class="btn-primary" style="background-color: #059669; border: none;">
+                    <i class="fas fa-door-open"></i> Fundo de Caixa
+                </button>
                 <button id="btn-sangria" class="btn-secondary" style="color: #d97706; border-color: #d97706;">
                     <i class="fas fa-hand-holding-usd"></i> Retirada
                 </button>
@@ -139,6 +142,26 @@
         </div> 
 
     </main>
+
+    <div id="abrir-caixa-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="close-abrir-caixa-icon" style="position: absolute; top: 10px; right: 15px; cursor: pointer; font-size: 1.5rem;">&times;</span>
+            <i class="fas fa-coins modal-icon-alert" style="color: #059669;"></i>
+            <h2>Fundo de Caixa Inicial</h2>
+            <p>Informe o valor em dinheiro com o qual o caixa está começando hoje.</p>
+            
+            <form id="form-abrir-caixa" class="form-layout" style="text-align: left; margin-top: 20px;">
+                <div class="form-group">
+                    <label>Valor Inicial (R$)</label>
+                    <input type="number" id="valor-abrir-caixa" step="0.01" placeholder="0,00" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="btn-fechar-abrir-caixa" class="btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn-primary" style="background-color: #059669; border: none;">Confirmar Valor</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div id="sangria-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
@@ -262,7 +285,6 @@
                     html5QrcodeScanner = new Html5QrcodeScanner("pdv-camera-reader", { fps: 10, qrbox: { width: 250, height: 100 } }, false);
                     html5QrcodeScanner.render((texto) => {
                         codigoInput.value = texto;
-                        
                         if(btnAddManual) btnAddManual.click(); // Clica no botão + sozinho!
                         
                         html5QrcodeScanner.pause(true);
@@ -378,7 +400,40 @@
             });
         }
 
-        // 7. BOTÃO DE RETIRADA (SANGRIA) COM O MODAL BONITO
+        // 7. BOTÃO DE ABRIR CAIXA (FUNDO INICIAL)
+        const btnAbrirCaixa = document.getElementById('btn-abrir-caixa-pdv');
+        const abrirCaixaModal = document.getElementById('abrir-caixa-modal');
+        const formAbrirCaixa = document.getElementById('form-abrir-caixa');
+        
+        const fecharAbrirCaixa = () => { abrirCaixaModal.style.display = 'none'; formAbrirCaixa.reset(); };
+        
+        if(btnAbrirCaixa) btnAbrirCaixa.addEventListener('click', () => { abrirCaixaModal.style.display = 'flex'; });
+        document.getElementById('btn-fechar-abrir-caixa').addEventListener('click', fecharAbrirCaixa);
+        document.querySelector('.close-abrir-caixa-icon').addEventListener('click', fecharAbrirCaixa);
+
+        if(formAbrirCaixa) {
+            formAbrirCaixa.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const valor = parseFloat(document.getElementById('valor-abrir-caixa').value);
+                
+                if(isNaN(valor) || valor < 0) return alert("Valor inválido.");
+
+                try {
+                    const dataHoje = new Date().toLocaleDateString('pt-BR');
+                    
+                    // Adiciona o valor no "Dinheiro" do fechamento do dia para a gaveta começar com saldo
+                    await setDoc(doc(db, "empresas", empresaId, "fechamentos", dataHoje), {
+                        fundo_caixa: increment(valor),
+                        dinheiro: increment(valor)
+                    }, { merge: true });
+
+                    fecharAbrirCaixa();
+                    await window.mostrarModal("Sucesso", `Fundo de caixa de R$ ${valor.toFixed(2)} registrado com sucesso!`, "aviso");
+                } catch(e) { await window.mostrarModal("Erro", "Falha ao registrar fundo de caixa.", "aviso"); }
+            });
+        }
+
+        // 8. BOTÃO DE RETIRADA (SANGRIA)
         const btnSangria = document.getElementById('btn-sangria');
         const sangriaModal = document.getElementById('sangria-modal');
         const formSangria = document.getElementById('form-sangria');
@@ -414,7 +469,7 @@
             });
         }
 
-        // 8. FINALIZAR VENDA
+        // 9. FINALIZAR VENDA
         document.getElementById('btn-finalizar-venda').addEventListener('click', async () => {
             if(carrinho.length === 0) { await window.mostrarModal("Aviso", "Carrinho vazio!", "aviso"); return; }
 
